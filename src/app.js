@@ -898,13 +898,13 @@
   sound.restore()
   if (location.protocol === 'file:') $('offline').textContent = '· Local'
   else if ('serviceWorker' in navigator) {
-    navigator.serviceWorker
-      .register('sw.js')
-      .then(() => navigator.serviceWorker.ready)
-      .then(() => {
+    const workerURL = new URL('sw.js?v=2.1', location.href).href
+    const showOfflineReady = () => {
+      if (navigator.serviceWorker.controller?.scriptURL === workerURL)
         $('offline').textContent = '· Disponible sin conexión'
-      })
-      .catch(() => {})
+    }
+    navigator.serviceWorker.addEventListener('controllerchange', showOfflineReady)
+    navigator.serviceWorker.register(workerURL, { updateViaCache: 'none' }).then(showOfflineReady).catch(() => {})
   }
 
   async function holdScreen() {

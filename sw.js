@@ -1,6 +1,6 @@
 // Bump the asset version when publishing a new edition of the cabina.
 const prefix = 'fosfeno-' + new URL(self.registration.scope).pathname + '-'
-const cacheName = prefix + 'v2.0.0'
+const cacheName = prefix + 'v2.0.1'
 const files = [
   'index.html',
   'style.css?v=2',
@@ -8,7 +8,7 @@ const files = [
   'vendor/acorn/dist/acorn.js',
   'src/engine.js?v=2',
   'src/media.js?v=2',
-  'src/app.js?v=2',
+  'src/app.js?v=2.1',
   'vendor/dist/hydra-synth.js',
   'vendor/codemirror/lib/codemirror.css',
   'vendor/codemirror/lib/codemirror.js',
