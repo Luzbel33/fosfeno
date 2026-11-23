@@ -3,260 +3,262 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
-    <meta name="theme-color" content="#111211" />
-    <title>Fosfeno — Sintetizador visual</title>
+    <meta name="theme-color" content="#101211" />
+    <title>Fosfeno — Hydra en vivo</title>
     <link rel="icon" href="assets/mark.svg" />
-    <link rel="stylesheet" href="style.css" />
+    <link rel="stylesheet" href="vendor/codemirror/lib/codemirror.css" />
+    <link rel="stylesheet" href="style.css?v=2" />
   </head>
   <body>
     <header class="topbar">
-      <div class="brand">
-        <img src="assets/mark.svg" width="43" height="43" alt="" /><span>FOSFENO</span>
-      </div>
-      <div class="brand-detail">Sintetizador<br />visual en vivo</div>
+      <div class="brand"><img src="assets/mark.svg" alt="" /><span>FOSFENO</span></div>
+      <span class="brand-detail">Hydra <em>/</em> live coding</span>
       <div class="top-actions">
         <button id="soundOpen" class="minimal" aria-label="Abrir audio">
-          <i data-icon="wave"></i><span>Audio</span><b class="signal-dot"></b>
-        </button>
-        <button id="panelOpen" class="outline" aria-label="Abrir panel de control">
-          <i data-icon="sliders"></i><span>Panel</span>
-        </button>
-        <button id="project" class="primary"><i data-icon="expand"></i><span>Proyectar</span></button>
+          <i data-icon="wave"></i><span>Audio</span><b class="signal-dot"></b></button
+        ><button id="project" class="primary"><i data-icon="expand"></i><span>Proyectar</span></button>
       </div>
     </header>
-    <main>
-      <section id="monitor" aria-label="Monitor de la salida en vivo">
+    <main class="workbench">
+      <section class="output-area" aria-labelledby="outputTitle">
+        <div class="output-head">
+          <h1 id="outputTitle"><b class="dot"></b>Salida en vivo</h1>
+          <div id="buffers" class="buffers" aria-label="Salida Hydra">
+            <button data-output="0">o0</button><button data-output="1">o1</button
+            ><button data-output="2">o2</button><button data-output="3">o3</button
+            ><button data-output="all" aria-label="Ver cuatro salidas" title="Ver cuatro salidas">
+              <i data-icon="grid"></i>
+            </button>
+          </div>
+        </div>
         <div id="stage">
           <canvas
             id="visual"
-            width="960"
-            height="460"
-            aria-label="Visual generativa interactiva, arrastrá para deformar la señal"
+            width="800"
+            height="600"
+            aria-label="Salida del sintetizador Hydra"
           ></canvas>
-          <div class="overlay top-overlay">
-            <span class="live"><b></b> EN VIVO</span><span id="timecode">00:00:00</span>
-          </div>
-          <div class="overlay bottom-overlay">
-            <div class="caption">
-              <div class="scene-id">
-                <span class="dash"></span><span id="sceneId">ESCENA 01 / 06</span>
-              </div>
-              <h1 id="sceneName">Serafín</h1>
-              <p id="family">Anatomía espectral</p>
-            </div>
-            <button id="mutate" class="darkbutton">
-              <i data-icon="shuffle"></i>Mutar <kbd>M</kbd>
-            </button>
-          </div>
           <div id="failure" hidden role="alert"></div>
         </div>
-        <div class="rail" aria-hidden="true"><div id="progress"></div></div>
         <div class="transport">
-          <div class="transport-part navigation">
-            <button class="iconbutton" id="prev" aria-label="Escena anterior">
-              <i data-icon="prev"></i></button
-            ><button class="iconbutton" id="next" aria-label="Escena siguiente">
-              <i data-icon="next"></i>
-            </button>
-            <button class="auto" id="automate" aria-pressed="true">
-              <span class="switch"></span>Autopiloto
-            </button>
-          </div>
-          <div class="transport-part interval">
-            <span class="label">CAMBIO</span
-            ><button id="interval" title="Cambiar intervalo automático">
-              60 s <i data-icon="cycle"></i>
-            </button>
-          </div>
-          <label class="transport-part strength"
-            ><i data-icon="bolt"></i><span>Intensidad</span
-            ><input id="energy" type="range" min="0" max="100" value="68" /><output for="energy"
-              >68%</output
-            ></label
+          <button
+            id="automate"
+            class="auto"
+            aria-pressed="false"
+            title="Generar una nueva semilla en cada intervalo"
           >
-          <button id="signalOpen" class="transport-part sound-summary" title="Abrir audio">
-            <span class="meter" id="meter"></span><span id="signalName">Pulso interno</span>
-          </button>
+            <span class="switch"></span>Autopiloto</button
+          ><button id="interval" title="Cambiar intervalo">60 s <i data-icon="cycle"></i></button
+          ><button id="explore" class="explore" title="Generar otro sketch editable">
+            <i data-icon="shuffle"></i>Explorar</button
+          ><button id="signalOpen" class="sound-summary">
+            <span class="meter" id="meter"></span><span id="signalName">Pulso interno</span></button
+          ><span id="resolution">WebGL</span>
         </div>
       </section>
-      <section class="bank" aria-labelledby="bankTitle">
-        <div class="section-line">
-          <div>
-            <i data-icon="grid"></i>
-            <h2 id="bankTitle">Banco de escenas</h2>
+      <aside class="studio" aria-label="Estudio de código">
+        <nav class="workspace-tabs" aria-label="Herramientas">
+          <button data-view="code">Código</button><button data-view="library">Biblioteca</button
+          ><button data-view="signal">Señal</button>
+        </nav>
+        <section data-viewpane="code" id="editorPage">
+          <div class="fileline">
+            <span class="fileicon" aria-hidden="true">{ }</span
+            ><input id="scoreName" aria-label="Nombre del sketch" maxlength="85" /><button
+              id="hydraLink"
+              title="Abrir este código en el editor oficial de Hydra"
+              aria-label="Abrir en Hydra"
+            >
+              <i data-icon="external"></i></button
+            ><button
+              id="save"
+              title="Guardar copia en mi biblioteca"
+              aria-label="Guardar copia en mi biblioteca"
+            >
+              <i data-icon="save"></i></button
+            ><button id="exportJS" title="Descargar sketch .js" aria-label="Descargar sketch">
+              <i data-icon="download"></i>
+            </button>
           </div>
-          <button id="helpOpen" class="shortcut"><i data-icon="keyboard"></i> Atajos</button>
-        </div>
-        <div id="sceneBank" class="scene-bank"></div>
-      </section>
-      <footer>
-        <span
-          ><b class="dot"></b><span id="engineLabel">Hydra + GLSL</span><span id="offline"></span></span
-        ><span id="resolution">Inicializando señal</span>
-      </footer>
+          <div class="codebox">
+            <textarea id="code" aria-label="Código JavaScript de Hydra" spellcheck="false"></textarea>
+          </div>
+          <div id="numberRack" class="number-rack" hidden>
+            <label for="tune">Afinar número</label><input id="tune" type="range" /><output
+              for="tune"
+            ></output>
+          </div>
+          <div class="runline">
+            <button id="run" class="primary"><i data-icon="play"></i>Ejecutar</button
+            ><button id="block" title="Ctrl + Enter">Bloque</button
+            ><button id="liveEdit" class="auto" aria-pressed="true">
+              <span class="switch"></span>Edición en vivo
+            </button>
+          </div>
+          <div id="codeStatus" class="status" role="status">Iniciando motor…</div>
+          <div class="operator-head">
+            <button id="opsToggle" aria-expanded="true">
+              Operadores <span aria-hidden="true">⌄</span></button
+            ><span>Insertar en cadena</span>
+          </div>
+          <div id="ops" class="operator-grid"></div>
+        </section>
+        <section data-viewpane="library" class="panel-scroll" hidden>
+          <div class="section-line">
+            <h2>Biblioteca</h2>
+            <button id="blank" class="line-button"><i data-icon="plus"></i>En blanco</button>
+          </div>
+          <div class="generator">
+            <h3>Explorar una semilla</h3>
+            <div id="symChoices" class="segments">
+              <button data-fold="libre">Libre</button><button data-fold="x">Espejo X</button
+              ><button data-fold="y">Espejo Y</button><button data-fold="radial">Radial</button>
+            </div>
+            <div class="seedline">
+              <label
+                >Semilla<input
+                  id="seed"
+                  autocomplete="off"
+                  inputmode="numeric"
+                  placeholder="Aleatoria" /></label
+              ><button id="grow" class="primary"><i data-icon="shuffle"></i>Generar</button>
+            </div>
+          </div>
+          <div class="section-line">
+            <h3>Mis sketches</h3>
+            <button id="importCode" class="line-button">Importar .js</button>
+          </div>
+          <input hidden id="jsFile" type="file" accept=".js,.txt,text/javascript,text/plain" />
+          <div id="mine"></div>
+          <div class="section-line">
+            <h3>Comunidad Hydra</h3>
+            <button id="fetchCatalog" class="line-button">Abrir catálogo</button>
+          </div>
+          <div id="catalog" hidden>
+            <input
+              type="search"
+              id="findScore"
+              aria-label="Buscar en el catálogo de Hydra"
+              placeholder="Título, autor o sketch_id"
+            />
+            <div id="communityList"></div>
+          </div>
+          <h3>Puntos de partida</h3>
+          <div id="sketchList"></div>
+        </section>
+        <section data-viewpane="signal" id="panel" hidden>
+          <nav class="tabs" aria-label="Secciones de señal">
+            <button data-tab="input">Imagen</button><button data-tab="audio">Audio</button
+            ><button data-tab="out">Salida</button>
+          </nav>
+          <div class="panel-scroll">
+            <section data-pane="input" hidden>
+              <h3>Fuente visual</h3>
+              <p class="hint">
+                Tu fuente entra al sketch por src(s0). Podés usar una cámara virtual o capturar la
+                ventana de otro programa.
+              </p>
+              <div class="inputs">
+                <button id="camera"><i data-icon="camera"></i>Webcam</button
+                ><button id="screen"><i data-icon="screen"></i>Ventana</button
+                ><button id="fileVisual"><i data-icon="upload"></i>Foto o video</button>
+              </div>
+              <input type="file" hidden id="visualFile" accept="image/*,video/*" />
+              <div class="source-line">
+                <span id="visualName">Sin fuente conectada</span
+                ><button class="text-button" id="clearVisual" hidden>Quitar</button>
+              </div>
+              <button id="insertSource" class="outline wide">Insertar src(s0) en mi mezcla</button>
+              <h3>Tratamiento</h3>
+              <div class="segments">
+                <button data-brush="off">Señal directa</button
+                ><button data-brush="on">Pinceladas</button>
+              </div>
+              <p class="hint">
+                Pinceladas reconstruye la imagen en capas. Los graves ensanchan los trazos.
+              </p>
+              <div id="inputRanges"></div>
+              <button id="repaint" class="outline wide">
+                <i data-icon="cycle"></i>Volver a pintar
+              </button>
+            </section>
+            <section data-pane="audio" hidden>
+              <h3>Entrada de sonido</h3>
+              <p class="hint">
+                Los sketches pueden leer graves, medios y agudos en a.fft. El micrófono se analiza en
+                silencio.
+              </p>
+              <div class="inputs two">
+                <button id="mic"><i data-icon="mic"></i><span>Activar micrófono</span></button
+                ><button id="record"><i data-icon="record"></i><span>Grabar muestra</span></button>
+              </div>
+              <div id="audioRanges"></div>
+              <div class="spectrum" id="spectrum" aria-label="Espectro de audio"></div>
+              <div class="section-line mini">
+                <h3>Biblioteca de pistas</h3>
+                <button class="line-button" id="importAudio"><i data-icon="plus"></i>Importar</button>
+              </div>
+              <input type="file" id="audioFile" hidden multiple accept="audio/*" />
+              <p class="hint">
+                Cada pista se guarda en este navegador. Podés hacer sonar varias en bucle a la vez.
+              </p>
+              <div id="tracks"></div>
+            </section>
+            <section data-pane="out" hidden>
+              <h3>Proyección</h3>
+              <div class="action-list">
+                <button id="fullPanel"><i data-icon="expand"></i><span>Pantalla completa</span></button
+                ><button id="separate">
+                  <i data-icon="external"></i><span>Abrir ventana de salida</span>
+                </button>
+              </div>
+              <p class="hint">
+                Mové la ventana de salida al proyector y hacé doble clic para ampliarla. También
+                podés capturarla en OBS mientras manejás esta cabina.
+              </p>
+              <h3>Resolución</h3>
+              <div id="quality" class="segments compact">
+                <button data-q="auto">Auto</button><button data-q="540">540p</button
+                ><button data-q="720">720p</button><button data-q="1080">1080p</button>
+              </div>
+              <h3>Teclado</h3>
+              <dl class="keys">
+                <div>
+                  <dt>Ejecutar selección o bloque</dt>
+                  <dd>Ctrl ↵</dd>
+                </div>
+                <div>
+                  <dt>Ejecutar todo</dt>
+                  <dd>Ctrl Shift ↵</dd>
+                </div>
+                <div>
+                  <dt>Ocultar o mostrar controles</dt>
+                  <dd>Ctrl Shift H</dd>
+                </div>
+              </dl>
+              <p class="hint">En Mac podés usar ⌘. La ventana de salida recibe sólo el video.</p>
+              <p id="offline" class="hint"></p>
+              <p class="resources">
+                <a href="https://hydra.ojack.xyz/api/" target="_blank" rel="noopener"
+                  >Funciones de Hydra ↗</a
+                ><a href="https://github.com/Luzbel33/fosfeno" target="_blank" rel="noopener"
+                  >Código fuente ↗</a
+                >
+              </p>
+            </section>
+          </div>
+        </section>
+      </aside>
     </main>
     <div class="toast" id="toast" role="status"></div>
-    <dialog id="panel" aria-labelledby="panelTitle">
-      <div class="panel-head">
-        <div>
-          <div class="label">FOSFENO</div>
-          <h2 id="panelTitle">Panel de control</h2>
-        </div>
-        <button class="iconbutton" id="closePanel" aria-label="Cerrar panel">
-          <i data-icon="close"></i>
-        </button>
-      </div>
-      <nav class="tabs" aria-label="Secciones del panel">
-        <button data-tab="mix">Mezcla</button><button data-tab="input">Imagen</button
-        ><button data-tab="audio">Audio</button><button data-tab="out">Salida</button>
-      </nav>
-      <div class="panel-scroll">
-        <section data-pane="mix">
-          <h3>Motor visual</h3>
-          <div class="segments">
-            <button data-mode="hybrid">Híbrido</button><button data-mode="hydra">Hydra puro</button>
-          </div>
-          <p class="hint" id="modeHint">
-            Escenas procedurales con una segunda capa de síntesis y memoria de video.
-          </p>
-          <h3>Modulación</h3>
-          <div id="mixRanges"></div>
-          <div id="crossDesk">
-            <h3>Segunda escena</h3>
-            <p class="hint">Elegí otra forma y subí el cruce para entrelazar las dos señales.</p>
-            <div class="inputs layers" id="secondWorld"></div>
-            <div id="layerRange"></div>
-          </div>
-          <div id="patchDesk" hidden>
-            <h3>Patch en vivo</h3>
-            <p class="hint">
-              Editá la cadena de la escena actual. Usá s0 para la imagen y a.fft[0–2] para graves,
-              medios y agudos.
-            </p>
-            <label class="label" for="code">EXPRESIÓN HYDRA</label
-            ><textarea spellcheck="false" id="code" rows="4"></textarea>
-            <div class="inputs two">
-              <button id="applyCode">Aplicar patch</button
-              ><button id="restoreCode">Restaurar original</button>
-            </div>
-            <p id="codeStatus" role="status" class="hint"></p>
-          </div>
-          <h3>Paleta</h3>
-          <div class="palettes" id="palettes"></div>
-          <h3>Variación</h3>
-          <button id="panelMutate" class="outline wide">
-            <i data-icon="shuffle"></i>Mutar la forma
-          </button>
-        </section>
-        <section data-pane="input" hidden>
-          <h3>Fuente visual</h3>
-          <p class="hint">
-            Los colores y bordes de tu fuente deforman la escena. Podés usar una cámara virtual o
-            capturar la ventana de otro programa.
-          </p>
-          <div class="inputs">
-            <button id="camera"><i data-icon="camera"></i>Webcam</button
-            ><button id="screen"><i data-icon="screen"></i>Ventana</button
-            ><button id="fileVisual"><i data-icon="upload"></i>Foto o video</button>
-          </div>
-          <input type="file" hidden id="visualFile" accept="image/*,video/*" />
-          <div class="source-line">
-            <span id="visualName">Sin fuente conectada</span
-            ><button class="text-button" id="clearVisual" hidden>Quitar</button>
-          </div>
-          <h3>Tratamiento</h3>
-          <div class="segments">
-            <button data-brush="off">Señal directa</button><button data-brush="on">Pinceladas</button>
-          </div>
-          <p class="hint">
-            Pinceladas reconstruye la imagen en capas. Los graves ensanchan los trazos.
-          </p>
-          <div id="inputRanges"></div>
-          <button id="repaint" class="outline wide"><i data-icon="cycle"></i>Volver a pintar</button>
-        </section>
-        <section data-pane="audio" hidden>
-          <h3>Entrada de sonido</h3>
-          <p class="hint">
-            Los graves expanden las formas, los medios las tuercen y los agudos iluminan el detalle. El
-            micrófono se analiza en silencio.
-          </p>
-          <div class="inputs two">
-            <button id="mic"><i data-icon="mic"></i><span>Activar micrófono</span></button
-            ><button id="record"><i data-icon="record"></i><span>Grabar muestra</span></button>
-          </div>
-          <div id="audioRanges"></div>
-          <div class="spectrum" id="spectrum" aria-label="Espectro de audio"></div>
-          <div class="section-line mini">
-            <h3>Biblioteca de pistas</h3>
-            <button class="line-button" id="importAudio"><i data-icon="plus"></i>Importar</button>
-          </div>
-          <input type="file" id="audioFile" hidden multiple accept="audio/*" />
-          <p class="hint">
-            Cada pista se guarda en este navegador. Podés hacer sonar varias en bucle a la vez.
-          </p>
-          <div id="tracks"></div>
-        </section>
-        <section data-pane="out" hidden>
-          <h3>Proyección</h3>
-          <div class="action-list">
-            <button id="fullPanel"><i data-icon="expand"></i><span>Pantalla completa</span></button
-            ><button id="separate">
-              <i data-icon="external"></i><span>Abrir ventana de salida</span>
-            </button>
-          </div>
-          <p class="hint">
-            Mové la ventana de salida al proyector y hacé doble clic para ampliarla. También podés
-            capturarla en OBS mientras manejás esta cabina.
-          </p>
-          <h3>Resolución</h3>
-          <div id="quality" class="segments compact">
-            <button data-q="auto">Auto</button><button data-q="540">540p</button
-            ><button data-q="720">720p</button><button data-q="1080">1080p</button>
-          </div>
-          <h3>Atajos de la cabina</h3>
-          <dl class="keys">
-            <div>
-              <dt>Elegir escena</dt>
-              <dd>1 – 6</dd>
-            </div>
-            <div>
-              <dt>Anterior / siguiente</dt>
-              <dd>← →</dd>
-            </div>
-            <div>
-              <dt>Autopiloto</dt>
-              <dd>Espacio</dd>
-            </div>
-            <div>
-              <dt>Mutar la forma</dt>
-              <dd>M</dd>
-            </div>
-            <div>
-              <dt>Proyectar / volver</dt>
-              <dd>F</dd>
-            </div>
-            <div>
-              <dt>Deformar la imagen</dt>
-              <dd>Arrastrar</dd>
-            </div>
-          </dl>
-          <p class="resources">
-            <a
-              href="https://github.com/Luzbel33/fosfeno#llevarlo-a-una-fiesta"
-              target="_blank"
-              rel="noopener"
-              >Guía de uso</a
-            ><a href="https://github.com/Luzbel33/fosfeno" target="_blank" rel="noopener"
-              >Código fuente ↗</a
-            >
-          </p>
-        </section>
-      </div>
-    </dialog>
     <script src="vendor/dist/hydra-synth.js"></script>
-    <script src="src/worlds.js"></script>
-    <script src="src/engine.js"></script>
-    <script src="src/media.js"></script>
-    <script src="src/app.js"></script>
+    <script src="vendor/codemirror/lib/codemirror.js"></script>
+    <script src="vendor/codemirror/mode/javascript/javascript.js"></script>
+    <script src="vendor/codemirror/addon/edit/matchbrackets.js"></script>
+    <script src="vendor/acorn/dist/acorn.js"></script>
+    <script src="src/sketches.js?v=2"></script>
+    <script src="src/engine.js?v=2"></script>
+    <script src="src/media.js?v=2"></script>
+    <script src="src/app.js?v=2"></script>
   </body>
 </html>
