@@ -1,22 +1,32 @@
 # Fosfeno · Hydra en vivo
 
-Editor de live coding y sintetizador de video con Hydra. Cada imagen de la salida la produce el JavaScript del sketch. Podés empezar en blanco, editar una pieza existente o generar un nuevo grafo de señales a partir de una semilla.
+Editor de live coding y sintetizador de video con Hydra. El JavaScript del sketch genera la imagen base. Los sectores opcionales componen sus efectos encima de esa salida. Podés empezar en blanco, editar una pieza existente o generar un nuevo grafo de señales a partir de una semilla.
+
+En una sesión nueva, Fosfeno abre y ejecuta *MULTIVERSE*, de e_e (@eerie_ear). Es una apertura observada en el editor oficial, que sortea un ejemplo de su catálogo en cada visita sin parámetros. El documento conserva el texto, los créditos y la licencia CC BY-NC-SA 4.0 del original. [Abrir el mismo sketch en Hydra](https://hydra.ojack.xyz/?sketch_id=eerie_ear_0) · [Comparación en navegador y límites](docs/paridad-hydra.md)
 
 [Abrir el estudio](https://luzbel33.github.io/fosfeno/index.html?v=2) · [Abrir Glitch River de Flor de Fuego](https://luzbel33.github.io/fosfeno/index.html?sketch_id=flor_2) · [Ver el editor en movimiento](media/fosfeno-demo.mp4)
 
 ## Tocar una visual
 
-La salida tiene su propio espacio. El código, la biblioteca y las entradas están al costado en escritorio y debajo en celular. La ventana del proyector recibe el canvas limpio.
+En el teléfono la visual abre grande. Tocá **Código**, **Biblioteca**, **Señal** o **Sectores** en la barra inferior para abrir sus herramientas. Tocá la misma pestaña para plegarlas. En escritorio el editor queda al costado. Arrastrá la división con el dedo o el mouse para repartir el espacio. Con teclado, enfocá la división y usá las flechas.
 
-1. En **Código**, cambiá un valor. Con **Edición en vivo** encendida, la salida se actualiza tras una pausa breve al escribir. Tocá un literal numérico para afinarlo con el deslizador.
-2. Elegí **Espejo X**, **Modular** u otro operador. Se inserta en la cadena que contiene el cursor o en la cadena de salida principal. Las funciones de los espejos aparecen definidas en el propio documento.
+**Ampliar** te deja mirar la composición en la misma ventana. **Volver a editar** o **Esc** recupera la pestaña y el tamaño que estabas usando. **Proyectar** abre una ventana aparte con la imagen limpia.
+
+1. En **Código**, cambiá un valor. **Edición en vivo** empieza encendida y recuerda tu elección. La salida se actualiza tras una pausa breve al escribir. Tocá un literal numérico para afinarlo con el deslizador.
+2. Elegí **Espejo X**, **Modular** u otro operador. Se inserta en la cadena que contiene el cursor o en la cadena de salida principal. **Efectos → Quitar** muestra los operadores editables, sus líneas y las capas de biblioteca. Cada mezcla con una proporción numérica tiene un deslizador. El **?** de Efectos explica cada botón.
 3. **Explorar** escribe un nuevo sketch. En **Biblioteca** podés elegir simetría, ingresar una semilla y volver a generar el mismo grafo. El generador combina interferencias, ecos entre fotogramas, inversión de coordenadas, tramas y campos de órbitas. Cada operación queda editable.
-4. Para armar una pieza desde cero, elegí **Biblioteca → En blanco**. Escribí `osc(14, 0.08, 1.4).kaleid(5).out(o0)` y tocá **Ejecutar**.
+4. Para armar una pieza desde cero, elegí **Biblioteca → En blanco**. Escribí `osc(14, 0.08, 1.4).kaleid(5).out(o0)`; en edición en vivo se proyecta al escribir.
 5. **Autopiloto** escribe y ejecuta una semilla nueva en cada intervalo. Tocar el código devuelve el control al operador. El intervalo se elige junto al interruptor.
 
-### Ejecutar por bloques
+### Leer, ajustar y ejecutar código
 
-**Ctrl + Enter** ejecuta la selección o el bloque entre líneas vacías. **Ctrl + Shift + Enter** ejecuta todo. En Mac también funciona ⌘. Las variables y funciones declaradas al nivel superior pueden reutilizarse desde otro bloque. Las funciones que se pasan como parámetros se evalúan durante la animación.
+El **?** junto al nombre del sketch abre **Comentarios por línea**. Podés mostrarlos mientras editás y copiar el código con una guía numerada para consultarla o llevarla a una IA. Las anotaciones son locales. El texto del editor y la atribución del original se conservan.
+
+En **Efectos → Agregar → Todos los operadores Hydra**, elegí una fuente, una transformación o una mezcla del motor. **Ajustar** muestra cada llamada con su línea, los argumentos del código y los valores predeterminados que aporta Hydra. Podés escribir un número, una secuencia o una expresión como `() => time * 0.2`. **Guardar este operador** guarda una copia con sus argumentos. Para los operadores que dependen de variables propias del sketch, guardá la composición completa.
+
+**Ctrl + Enter** ejecuta la línea del cursor. **Alt + Enter** ejecuta el bloque entre líneas vacías y **Ctrl + Shift + Enter** ejecuta todo. El botón **Bloque** también admite una selección. La ejecución al escribir se activa con **Edición en vivo**. Podés comentar con **Ctrl + /**, formatear con **Ctrl + Shift + F** y descargar el fotograma y el código con **Ctrl + Shift + S**. Fosfeno también admite ⌘ como modificador. Las variables y funciones declaradas al nivel superior pueden reutilizarse desde otro bloque.
+
+Cuando abrís Fosfeno por HTTP o HTTPS, **Ejecutar** o **Ctrl + Shift + Enter** guarda el código de una ejecución exitosa en la dirección de esa pestaña. **Atrás** y **Adelante** recuperan y ejecutan los pasos de esa sesión. Podés copiar la dirección para llevar el código a otra pestaña, donde queda listo para ejecutar a mano. Ejecutar una línea, tocar un parámetro o escribir en vivo mantiene la dirección actual.
 
 ```js
 let pliegues = 5
@@ -31,31 +41,52 @@ src(o1)
 render(o0)
 ```
 
-Probá seleccionar y ejecutar `pliegues = 9`. Podés usar las cuatro entradas `s0…s3`, las cuatro salidas `o0…o3`, secuencias, callbacks, `update`, `speed`, `bpm`, `setFunction` y código asíncrono. Los botones sobre la visual permiten inspeccionar cada buffer. `render()` muestra las cuatro salidas. Si falla la compilación de una cadena, el editor recupera los programas de salida anteriores.
+Probá seleccionar y ejecutar `pliegues = 9`. Podés usar las cuatro entradas `s0…s3`, las cuatro salidas `o0…o3`, secuencias, callbacks, `update`, `speed`, `bpm`, `setFunction` y código asíncrono. El selector **Principal · o0** permite inspeccionar un buffer o verlos juntos en mosaico. **Ver mezcla** muestra las cadenas compiladas, las entradas y los sectores en salida. `render()` muestra las cuatro salidas. Si falla la compilación de una cadena, el editor recupera los programas de salida anteriores.
 
 ### Biblioteca e intercambio
 
+- **Mezclar** inserta una capa editable en el código actual. Las cadenas simples se combinan directamente. Las piezas con feedback necesitan salidas Hydra libres; el panel indica si faltan. Los sketches que toman el control de los dispositivos se pueden abrir por separado.
 - **Puntos de partida** incluye el `flor_2` original, patches multibuffer, osciladores, geometrías escritas con GLSL y tratamientos para fuentes en vivo.
-- **Comunidad Hydra → Abrir catálogo** lee los ejemplos del repositorio oficial. Buscá por nombre, autor o identificador. Tras la primera descarga, el catálogo queda disponible en ese navegador sin conexión. Algunos sketches pueden requerir sus propias fuentes externas.
+- **Comunidad Hydra → Abrir catálogo** lee los ejemplos del repositorio oficial. Sin conexión usa la copia guardada o los 58 ejemplos incluidos. Buscá por nombre, autor o identificador. Un enlace con `?sketch_id=` puede abrir cualquiera de los ejemplos incluidos. Los enlaces con `?code=` cargan el código en el editor y esperan a que pulses **Ejecutar**.
 - **Guardar** conserva una copia local. También podés importar o descargar JavaScript. El botón **Abrir en Hydra** lleva el código actual al editor oficial en un enlace.
-- Los documentos importados, los de la comunidad y los borradores recuperados esperan a que pulses **Ejecutar**. El editor ejecuta JavaScript con las capacidades de la página.
+- Los enlaces con JavaScript y los archivos importados requieren una primera ejecución explícita. Una edición posterior de un borrador local previamente activado puede volver a proyectarse en vivo.
 
 ## Señal y proyección
 
-En **Señal → Imagen** conectá una webcam, una ventana, una foto o un video. La entrada queda disponible como `src(s0)`. **Pinceladas** la reconstruye con trazos orientados según los bordes. **Insertar src(s0) en mi mezcla** escribe un blend explícito en el sketch. También podés inicializar las fuentes desde código con la API nativa de Hydra.
+En **Señal → Imagen**, **Webcam** pide acceso a la cámara predeterminada. Abrí la cabina por HTTPS o localhost y permití el acceso en el navegador. Podés elegir cualquier cámara que el navegador identifique en el panel. En algunos equipos los nombres aparecen después de dar permiso. La vista previa confirma qué cámara llega a `s0`. **Quitar** libera la entrada.
 
-En **Audio** podés activar el micrófono, importar pistas o grabar una toma. Cada pista admite bucle, volumen y descarga. Podés superponer varias. La biblioteca se guarda en IndexedDB, en este navegador. Por defecto `a.fft[0]`, `a.fft[1]` y `a.fft[2]` corresponden a graves, medios y agudos. Sin entrada de audio, esas bandas siguen un pulso interno de 130 BPM.
+**Mezclar al conectar** inserta la entrada de cámara, ventana o archivo en el sketch. **Mezclar con el sketch** puede volver a agregarla y **Ver sólo la fuente** abre una cadena Hydra editable dedicada a la entrada. Para usar la cámara sólo dentro de un sector, conectala allí o desactivá la mezcla automática en el panel. **Pinceladas** reconstruye la entrada con trazos orientados según los bordes. También podés usar una ventana, foto o video. Desde código, `await s1.initCam(0)` conecta la primera cámara a `s1` y `s1.clear()` la libera. Los índices empiezan en cero y las cuatro entradas admiten cámaras.
 
-**Proyectar** amplía la salida. Para seguir editando desde la notebook, usá **Señal → Salida → Abrir ventana de salida**, movela al proyector y hacé doble clic. También podés capturarla en OBS. **Ctrl + Shift + H** oculta los controles de la cabina.
+En **Audio** podés activar el micrófono, importar pistas o grabar una toma. Cada pista admite bucle, volumen y descarga. Podés superponer varias. La biblioteca se guarda en IndexedDB, en este navegador. Hydra arranca con cuatro bandas en `a.fft` y un tempo de 30 BPM. Usá `a.setBins(n)`, `a.settings[i]`, `a.setSmooth(v)`, `a.setCutoff(v)` y `a.setScale(v)` para ajustar la respuesta. En reposo las bandas arrancan en cero. Para generar un ritmo de forma explícita, activá **Pulso interno sin audio** y ajustá **Tempo**. Una entrada activa tiene prioridad incluso durante sus silencios.
+
+Para usar p5 como entrada, creá `p = new P5()`, dibujá en `p`, conectá `s1.init({src: p.canvas})` y ejecutá `src(s1).out()`. Para recibir video de otra instancia de Hydra, usá `s0.initStream("nombre")`. En la emisora, `pb.setName("nombre")` habilita compartir el canvas por WebRTC. `pb.list()` abre el descubrimiento de pares y `pb.disconnect()` cierra la conexión de Fosfeno. Para una sala propia, ejecutá primero `pb.connect(urlDelServidor, nombreDeSala)` en las dos instancias.
+
+**Proyectar** abre una segunda ventana que contiene únicamente el video de la composición. Movela al proyector y hacé doble clic para ponerla en pantalla completa. La cabina conserva el editor y las guías. En una sola pantalla usá **Señal → Salida → Pantalla completa**.
+
+### Sectores
+
+En **Sectores → Dibujar sector**, elegí una forma y arrastrá sobre la visual. **Libre** sigue el recorrido del puntero. Tocá un sector en la lista o sobre la imagen para seleccionarlo; **Redibujar** cambia sus límites. El último de la lista se superpone a los anteriores.
+
+Cada sector puede usar el sketch, la señal compartida s0 o su propia foto o video. **Pinceladas** reconstruye esa imagen dentro de la máscara. **Agregar** apila efectos con parámetros propios y **Quitar** retira uno de ellos. Si apagás **Edición en vivo**, las guías muestran el dibujo preparado y **Aplicar sectores al proyector** confirma esa parte de la mezcla.
+
+**Deformar** muestra los puntos del contorno. Arrastrá un punto para cambiarlo, un borde para agregar un vértice o el interior para mover toda la forma. La **Opacidad** y los parámetros de los efectos pertenecen al sector seleccionado. **Guardar sectores** actualiza la copia local de los sectores y sus archivos. **Recuperar guardados** vuelve a cargarla.
+
+### Llevar una creación a otra cabina
+
+En **Biblioteca → Creaciones portátiles**, **Guardar actual** crea una versión con el nombre del editor en IndexedDB. Lleva el código completo, las capas de biblioteca, los sectores dibujados, sus parámetros, el archivo visual de s0 y las fotos o videos locales de los sectores. También conserva la salida elegida, el tempo, el pulso, el pincel y la sensibilidad. La biblioteca de pistas de audio, las cámaras y las URLs externas del código se vuelven a conectar en destino.
+
+Abrí el nombre, elegí **Descargar** y llevá el archivo `.fosfeno` en un USB. En otra cabina, **Importar archivo** lo agrega a su biblioteca. **Activar** ejecuta una composición y cambia la proyección. En un operador individual, **Insertar** lo suma al código respetando el modo de edición en vivo. Cada guardado crea una copia independiente. La descarga JavaScript sigue disponible desde el editor.
+
 
 ## Operación local
 
 Descargá las carpetas y abrí `index.html` o ejecutá `python -m http.server 8000 --bind 127.0.0.1` y abrí `http://localhost:8000`. La edición web usa HTTPS para los permisos de medios. La cabina pública se puede recargar sin conexión después de la primera carga completa. Al publicar cambios, actualizá la versión de caché de `sw.js` y las URLs de recursos de la entrada cuando correspondan.
 
-Se usa el motor **hydra-synth 1.4.0**, CodeMirror 5.65.18 y Acorn 8.15.0, incluidos localmente. Acorn mantiene las declaraciones de nivel superior entre ejecuciones de bloques. Los presets y el generador están en `src/sketches.js`. Para ejecutar las pruebas del evaluador y del generador usá `node --test tests/live-code.test.cjs`.
+Se usa el motor **hydra-synth 1.4.0**, CodeMirror 5.65.18 y Acorn 8.15.0, incluidos localmente. Acorn mantiene las declaraciones de nivel superior entre ejecuciones de bloques. Los presets y el generador están en `src/sketches.js`. Para ejecutar las pruebas del evaluador, el generador, el audio y el ciclo de conexión de cámaras usá `node --test`. Las pruebas de cámara de esta suite usan dispositivos simulados.
 
 ## Créditos
 
 - Hydra, de Olivia Jack y colaboradores. *Glitch River* es de Flor de Fuego y conserva la atribución del sketch. [Motor distribuido](https://github.com/hydra-synth/hydra-synth/tree/c3ba80bd82f096e0ef7a9b7022e72c04162c25c4) · [Sketch original](https://hydra.ojack.xyz/?sketch_id=flor_2) · [Catálogo de la comunidad](https://github.com/hydra-synth/hydra/blob/main/src/stores/examples.json)
 - La mezcla de fuentes toma como referencias modV y projectM. El pincel incremental se inspira en el trabajo de Aaron Hertzmann sobre orientación y escala de los trazos. [modV](https://github.com/vcync/modV) · [projectM](https://github.com/projectM-visualizer/projectm) · [Painterly Rendering](https://mrl.cs.nyu.edu/publications/painterly98/)
-- Fosfeno se distribuye bajo GNU AGPL v3. Las bibliotecas del editor y las fuentes conservan sus respectivas licencias. [AGPL](LICENSE) · [CodeMirror](vendor/codemirror/LICENSE) · [Acorn](vendor/acorn/LICENSE) · [Barlow](assets/LICENSE-Barlow.txt) · [Space Mono](assets/LICENSE-SpaceMono.txt)
+- El código de Fosfeno se distribuye bajo GNU AGPL v3. Los sketches del catálogo oficial, incluida la pieza inicial, conservan la atribución de cada artista y la licencia CC BY-NC-SA 4.0. El uso comercial de esas piezas requiere permiso adicional del titular. [Licencia del código](LICENSE) · [Licencia del catálogo](https://creativecommons.org/licenses/by-nc-sa/4.0/)
+- Las dependencias y las tipografías conservan sus licencias. [p5.js](vendor/p5/LICENSE) · [Dependencias de Patch Bay](vendor/patch-bay/THIRD-PARTY.txt) · [js-beautify](vendor/beautify/LICENSE) · [CodeMirror](vendor/codemirror/LICENSE) · [Acorn](vendor/acorn/LICENSE) · [Barlow](assets/LICENSE-Barlow.txt) · [Space Mono](assets/LICENSE-SpaceMono.txt)

@@ -1,5 +1,21 @@
+// Match Gallery.setSketch, including its license line and final newline.
+function gallerySketch(row) {
+  const license = '// licensed with CC BY-NC-SA 4.0 https://creativecommons.org/licenses/by-nc-sa/4.0/'
+  const raw = decodeURIComponent(atob(row.code))
+  const comments = raw.split(/\r?\n/).map((line) => line.trim())
+    .filter((line) => line.startsWith('//') && line !== license)
+    .map((line) => line.slice(2).trim())
+  return {
+    id: row.sketch_id,
+    name: comments[0]?.slice(0, 85) || row.sketch_id,
+    group: [comments[1]?.slice(0, 45), row.sketch_id].filter(Boolean).join(' · '),
+    code: raw.includes(license) ? raw : license + '\n' + raw + '\n'
+  }
+}
+const HYDRA_GALLERY = HYDRA_EXAMPLES.map(gallerySketch)
 // These are editable starting scores. No visual is drawn downstream of the operator's .out().
 const SKETCHES = [
+  { ...HYDRA_GALLERY.find((s) => s.id === 'eerie_ear_0'), name: 'MULTIVERSE', group: 'e_e · @eerie_ear' },
   {
     id: 'nacar',
     name: 'Nácar en fuga',
@@ -26,25 +42,7 @@ osc(68, -0.045, 1.28)
 
 render(o0)`
   },
-  {
-    id: 'flor_2',
-    name: 'Glitch River',
-    group: 'Flor de Fuego',
-    code: `//Glitch River
-//Flor de Fuego
-//https://flordefuego.github.io/
-voronoi(8,1)
-.mult(osc(10,0.1,()=>Math.sin(time)*3).saturate(3).kaleid(200))
-.modulate(o0,0.5)
-.add(o0,0.8)
-.scrollY(-0.01)
-.scale(0.99)
-.modulate(voronoi(8,1),0.008)
-.luma(0.3)
-.out()
-
-speed = 0.1`
-  },
+  { ...HYDRA_GALLERY.find((s) => s.id === 'flor_2'), name: 'Glitch River', group: 'Flor de Fuego' },
   {
     id: 'abismo',
     name: 'Abismo logarítmico',
@@ -217,18 +215,18 @@ const MIRRORS = {
     "setFunction({name:'espejoY', type:'coord', inputs:[], glsl:'return vec2(_st.x, abs(_st.y-0.5)*2.0);'})"
 }
 const OPERATORS = [
-  ['Espejo X', '.espejoX()', 'espejoX'],
-  ['Espejo Y', '.espejoY()', 'espejoY'],
-  ['Calidoscopio', '.kaleid(6)'],
-  ['Teselar', '.repeat(3, 2)'],
-  ['Girar', '.rotate(0, 0.08)'],
-  ['Modular', '.modulate(noise(3, 0.14), 0.16)'],
-  ['Realimentar', '.blend(src(o0).scale(1.012), 0.55)'],
-  ['Interferencia', '.diff(osc(27, 0.05, 1.3).rotate(0.76))'],
-  ['Graves', '.scale(() => 1 + a.fft[0] * 0.30)'],
-  ['Mouse', '.rotate(() => mouse.x / width * 1.5)'],
-  ['Cruzar s0', '.blend(src(s0), 0.52)'],
-  ['Posterizar', '.posterize(7, 0.7)']
+  ['Espejo X', '.espejoX()', 'Refleja de izquierda a derecha', 'espejoX'],
+  ['Espejo Y', '.espejoY()', 'Refleja de arriba abajo', 'espejoY'],
+  ['Caleidoscopio', '.kaleid(6)', 'Forma seis sectores simétricos'],
+  ['Teselar', '.repeat(3, 2)', 'Repite la imagen en una grilla'],
+  ['Girar', '.rotate(0, 0.08)', 'Rota la imagen con el tiempo'],
+  ['Modular', '.modulate(noise(3, 0.14), 0.16)', 'Deforma la imagen con ruido'],
+  ['Realimentar', '.blend(src(o0).scale(1.012), 0.55)', 'Mezcla un eco del cuadro anterior'],
+  ['Interferencia', '.diff(osc(27, 0.05, 1.3).rotate(0.76))', 'Cruza la imagen con franjas'],
+  ['Graves', '.scale(() => 1 + a.fft[0] * 0.30)', 'Hace zoom según el audio'],
+  ['Mouse', '.rotate(() => mouse.x / width * 1.5)', 'Gira al mover el puntero'],
+  ['Cruzar s0', '.blend(src(s0), 0.52)', 'Mezcla la cámara, foto o video'],
+  ['Posterizar', '.posterize(7, 0.7)', 'Reduce los tonos de color']
 ]
 
 // Generate the actual orbit-trap source into the score. It travels with the .js

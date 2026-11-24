@@ -3419,6 +3419,8 @@ class HydraRenderer {
 
 }
 
+// Fosfeno (2026-11-23): let the studio route its opt-in audio mix into Hydra's own analyser.
+HydraRenderer.Audio = _audio.default;
 var _default = HydraRenderer;
 exports.default = _default;
 
@@ -3561,6 +3563,7 @@ class Audio {
     smooth = 0.4,
     max = 15,
     scale = 10,
+    autoStart = true,
     isDrawing = false,
     parentEl = document.body
   }) {
@@ -3599,7 +3602,7 @@ class Audio {
     this.ctx.strokeStyle = "#0ff";
     this.ctx.lineWidth = 0.5;
 
-    if (window.navigator.mediaDevices) {
+    if (autoStart && window.navigator.mediaDevices) {
       window.navigator.mediaDevices.getUserMedia({
         video: false,
         audio: true
@@ -3610,16 +3613,16 @@ class Audio {
 
         let audio_stream = this.context.createMediaStreamSource(stream); //  console.log(this.context)
 
-        this.meyda = _meyda.default.createMeydaAnalyzer({
-          audioContext: this.context,
-          source: audio_stream,
-          featureExtractors: ['loudness' //  'perceptualSpread',
-          //  'perceptualSharpness',
-          //  'spectralCentroid'
-          ]
-        });
+        this.connectSource(this.context, audio_stream);
       }).catch(err => console.log('ERROR', err));
     }
+  }
+
+  connectSource(context, source) {
+    this.context = context;
+    this.meyda = _meyda.default.createMeydaAnalyzer({
+      audioContext: context, source, featureExtractors: ['loudness']
+    });
   }
 
   detectBeat(level) {
@@ -3651,6 +3654,8 @@ class Audio {
         let spacing = Math.floor(features.loudness.specific.length / this.bins.length);
         this.prevBins = this.bins.slice(0);
         this.bins = this.bins.map((bin, index) => {
+          // Preserve Fosfeno's support for more bins than Meyda's native Bark bands.
+          if (!spacing) return features.loudness.specific[Math.floor(index * features.loudness.specific.length / this.bins.length)];
           return features.loudness.specific.slice(index * spacing, (index + 1) * spacing).reduce(reducer);
         }).map((bin, index) => {
           // map to specified range

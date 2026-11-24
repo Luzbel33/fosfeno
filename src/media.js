@@ -95,6 +95,10 @@ class SoundDesk {
       this.analyser.fftSize = 2048
       this.analyser.smoothingTimeConstant = 0.72
       this.bins = new Uint8Array(this.analyser.frequencyBinCount)
+      this.analysisGain = this.context.createGain()
+      this.analysisGain.gain.value = this.sensitivity
+      this.analyser.connect(this.analysisGain)
+      this.hydraAudio.connectSource(this.context, this.analysisGain)
       this.output = this.context.createDynamicsCompressor()
       this.output.connect(this.context.destination)
     }
@@ -241,14 +245,8 @@ class SoundDesk {
       Array.from(this.tracks.values()).some((t) => t.audio && !t.audio.paused)
     )
   }
-  sample(seconds, bpm, sensitivity, dt) {
-    const beats = (seconds * bpm) / 60,
-      sub = beats % 1
-    let values = [
-      0.44 * Math.exp(-sub * 6),
-      0.21 + 0.15 * Math.sin(beats * 1.57),
-      0.24 * Math.exp(-((beats * 2) % 1) * 5)
-    ]
+  sample(seconds, bpm, sensitivity, dt, internalPulse = false) {
+    let values
     if (this.active && this.analyser) {
       this.analyser.getByteFrequencyData(this.bins)
       const hz = this.context.sampleRate / this.analyser.fftSize
@@ -263,6 +261,15 @@ class SoundDesk {
         for (let k = start; k < end; k++) sum += (this.bins[k] / 255) ** 2
         return Math.min(1, Math.sqrt(sum / Math.max(1, end - start)) * sensitivity)
       })
+    } else if (internalPulse) {
+      const beats = (seconds * bpm) / 60
+      values = [
+        0.44 * Math.exp(-(beats % 1) * 6),
+        0.21 + 0.15 * Math.sin(beats * 1.57),
+        0.24 * Math.exp(-((beats * 2) % 1) * 5)
+      ]
+    } else {
+      return this.levels.fill(0)
     }
     this.levels = this.levels.map(
       (v, i) => v + (values[i] - v) * (1 - Math.exp(-dt * (values[i] > v ? 18 : 5)))

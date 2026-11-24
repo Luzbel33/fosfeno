@@ -5,11 +5,25 @@ const vm = require('node:vm')
 const test = require('node:test')
 const acorn = require('../vendor/acorn/dist/acorn.js')
 
-const context = vm.createContext({ acorn })
+const context = vm.createContext({ acorn, atob })
+vm.runInContext(
+  fs.readFileSync(path.join(__dirname, '../vendor/hydra-gallery/examples.js'), 'utf8'),
+  context
+)
 for (const name of ['engine', 'sketches']) {
   vm.runInContext(fs.readFileSync(path.join(__dirname, '../src', name + '.js'), 'utf8'), context)
 }
 const { compileScore, growSketch } = context
+
+test('the initial score is byte-identical to the captured Hydra editor document', () => {
+  const { createHash } = require('node:crypto')
+  const initial = vm.runInContext('SKETCHES[0]', context)
+  assert.equal(initial.id, 'eerie_ear_0')
+  assert.equal(
+    createHash('sha256').update(initial.code).digest('hex'),
+    'dc19d3a78597e4611844e73f6775700ee004031c504d8821a02871e46a43076d'
+  )
+})
 
 test('live bindings survive evaluation units, including destructuring, functions and await', async () => {
   const env = Object.create(null)

@@ -7,7 +7,7 @@
     <title>Fosfeno — Hydra en vivo</title>
     <link rel="icon" href="assets/mark.svg" />
     <link rel="stylesheet" href="vendor/codemirror/lib/codemirror.css" />
-    <link rel="stylesheet" href="style.css?v=2" />
+    <link rel="stylesheet" href="style.css?v=2.7" />
   </head>
   <body>
     <header class="topbar">
@@ -16,21 +16,26 @@
       <div class="top-actions">
         <button id="soundOpen" class="minimal" aria-label="Abrir audio">
           <i data-icon="wave"></i><span>Audio</span><b class="signal-dot"></b></button
-        ><button id="project" class="primary"><i data-icon="expand"></i><span>Proyectar</span></button>
+        ><button id="project" class="primary" title="Abrir una ventana con la imagen sola"><i data-icon="external"></i><span>Proyectar</span></button>
       </div>
     </header>
     <main class="workbench">
-      <section class="output-area" aria-labelledby="outputTitle">
+      <section class="output-area" id="previewArea" aria-labelledby="outputTitle">
         <div class="output-head">
           <h1 id="outputTitle"><b class="dot"></b>Salida en vivo</h1>
-          <div id="buffers" class="buffers" aria-label="Salida Hydra">
-            <button data-output="0">o0</button><button data-output="1">o1</button
-            ><button data-output="2">o2</button><button data-output="3">o3</button
-            ><button data-output="all" aria-label="Ver cuatro salidas" title="Ver cuatro salidas">
-              <i data-icon="grid"></i>
-            </button>
+          <div class="preview-actions">
+            <button id="chooseOutput" class="output-choice" aria-controls="outputChoices" aria-expanded="false">Principal · o0 ▾</button>
+            <button id="focusPreview" aria-pressed="false"><i data-icon="expand"></i><span>Ampliar</span></button>
           </div>
         </div>
+        <div id="outputChoices" hidden>
+          <div id="buffers" class="buffers" role="group" aria-label="Salida para proyectar">
+            <button data-output="0">Principal · o0</button><button data-output="1">Salida 2 · o1</button>
+            <button data-output="2">Salida 3 · o2</button><button data-output="3">Salida 4 · o3</button>
+            <button data-output="all">Mosaico</button><button class="help-key" data-help="salidas" aria-label="Qué son las salidas Hydra">?</button>
+          </div>
+        </div>
+        <p data-guide="salidas" hidden>Un sketch puede dibujar hasta cuatro imágenes al mismo tiempo. La principal es o0. Si el código escribe en o1, o2 u o3, podés ver esa imagen o usar Mosaico para ver las cuatro. Una salida vacía se ve negra. Proyectar envía la vista elegida a una ventana con sólo la imagen.</p>
         <div id="stage">
           <canvas
             id="visual"
@@ -38,6 +43,7 @@
             height="600"
             aria-label="Salida del sintetizador Hydra"
           ></canvas>
+          <canvas id="sectorGuide" hidden aria-label="Dibujar o seleccionar un sector sobre la visual"></canvas>
           <div id="failure" hidden role="alert"></div>
         </div>
         <div class="transport">
@@ -48,22 +54,28 @@
             title="Generar una nueva semilla en cada intervalo"
           >
             <span class="switch"></span>Autopiloto</button
+          ><button class="help-key" aria-label="Qué hace Autopiloto" data-help="autopiloto">?</button
           ><button id="interval" title="Cambiar intervalo">60 s <i data-icon="cycle"></i></button
           ><button id="explore" class="explore" title="Generar otro sketch editable">
             <i data-icon="shuffle"></i>Explorar</button
           ><button id="signalOpen" class="sound-summary">
-            <span class="meter" id="meter"></span><span id="signalName">Pulso interno</span></button
+            <span class="meter" id="meter"></span><span id="signalName">Sin audio</span></button
           ><span id="resolution">WebGL</span>
         </div>
+        <p id="autoHelp" data-guide="autopiloto" class="transport-help" hidden>Genera un sketch nuevo al terminar el intervalo. Tocá el tiempo para cambiarlo o usá Explorar para generar uno ahora. Editar el código detiene el cambio automático.</p>
+        <div id="hydraMeter"></div>
       </section>
+      <div id="splitter" role="separator" tabindex="0" aria-controls="previewArea" aria-label="Espacio para la visual" aria-valuemin="0" aria-valuemax="100" aria-valuenow="66" title="Arrastrá para ajustar el espacio de la visual"></div>
       <aside class="studio" aria-label="Estudio de código">
         <nav class="workspace-tabs" aria-label="Herramientas">
           <button data-view="code">Código</button><button data-view="library">Biblioteca</button
-          ><button data-view="signal">Señal</button>
+          ><button data-view="signal">Señal</button><button data-view="sectors">Sectores</button>
         </nav>
+        <button id="mixInfo" aria-controls="mixDetail" aria-expanded="false">En salida · Ver mezcla ▾</button>
+        <div id="mixDetail" class="mix-detail" hidden></div>
         <section data-viewpane="code" id="editorPage">
           <div class="fileline">
-            <span class="fileicon" aria-hidden="true">{ }</span
+            <button class="help-key" aria-label="Ayuda y comentarios del código" data-help="codigo">?</button
             ><input id="scoreName" aria-label="Nombre del sketch" maxlength="85" /><button
               id="hydraLink"
               title="Abrir este código en el editor oficial de Hydra"
@@ -88,26 +100,40 @@
               for="tune"
             ></output>
           </div>
+          <p data-guide="codigo" hidden>Comentarios por línea agrega explicaciones junto al código mientras editás. Copiá el sketch con su guía para preguntar a una IA como ChatGPT qué hace un operador o cómo cambiarlo. Copiar usa el portapapeles de tu equipo.</p>
           <div class="runline">
             <button id="run" class="primary"><i data-icon="play"></i>Ejecutar</button
-            ><button id="block" title="Ctrl + Enter">Bloque</button
-            ><button id="liveEdit" class="auto" aria-pressed="true">
+            ><button id="block" title="Alt + Enter">Bloque</button
+            ><button id="liveEdit" class="auto" aria-pressed="true" title="Actualizar la salida mientras editás el código">
               <span class="switch"></span>Edición en vivo
-            </button>
+            </button><button class="help-key" aria-label="Cómo funciona Edición en vivo" data-help="edicion">?</button>
           </div>
+          <p id="liveHelp" data-guide="edicion" class="context-help" hidden>Encendida, los cambios de código y sectores llegan a la salida al editar. Apagala para prepararlos y usá Ejecutar cuando quieras mostrarlos. La cámara y el audio conectados siguen en vivo.</p>
           <div id="codeStatus" class="status" role="status">Iniciando motor…</div>
           <div class="operator-head">
-            <button id="opsToggle" aria-expanded="true">
-              Operadores <span aria-hidden="true">⌄</span></button
-            ><span>Insertar en cadena</span>
+            <button id="opsToggle" aria-expanded="true" aria-controls="effectPanel">
+              Efectos <span aria-hidden="true">⌄</span></button>
+            <button class="help-key" data-help="efectos" aria-label="Cómo editar los efectos">?</button>
+            <div id="effectModes" class="segments">
+              <button id="addMode" aria-pressed="true">Agregar</button>
+              <button id="adjustMode" aria-pressed="false">Ajustar</button>
+              <button id="removeMode" aria-pressed="false">Quitar</button>
+            </div>
           </div>
-          <div id="ops" class="operator-grid"></div>
+          <p id="fxHelp" data-guide="efectos" class="context-help" hidden>Agregar inserta en la cadena del cursor o en la salida elegida. En Ajustar elegí una llamada por nombre y línea. Cada campo muestra su expresión o el valor por defecto de Hydra. Ahí podés guardar un operador. Quitar lo retira del código. Ver mezcla muestra lo que se proyecta.</p>
+          <div id="effectPanel">
+            <div id="ops" class="operator-grid"></div>
+            <details id="hydraCatalog" class="portable"><summary>Todos los operadores Hydra</summary><div id="hydraChoices"></div></details>
+            <div id="operatorInspector" hidden></div>
+            <div id="activeEffects" class="operator-grid" hidden></div>
+          </div>
         </section>
         <section data-viewpane="library" class="panel-scroll" hidden>
           <div class="section-line">
-            <h2>Biblioteca</h2>
+            <h2>Biblioteca <button class="help-key" data-help="biblioteca" aria-label="Ayuda sobre la biblioteca">?</button></h2>
             <button id="blank" class="line-button"><i data-icon="plus"></i>En blanco</button>
           </div>
+          <p data-guide="biblioteca" hidden>Tocá un título para abrirlo. Mezclar suma una capa al código actual. Podés quitarla en Código → Efectos → Quitar.</p>
           <div class="generator">
             <h3>Explorar una semilla</h3>
             <div id="symChoices" class="segments">
@@ -130,6 +156,14 @@
           </div>
           <input hidden id="jsFile" type="file" accept=".js,.txt,text/javascript,text/plain" />
           <div id="mine"></div>
+          <details id="projectLibrary" class="portable">
+            <summary>Creaciones portátiles</summary>
+            <div class="section-line"><div class="segments"><button id="projectSave">Guardar actual</button><button id="projectImport">Importar archivo</button></div>
+            <button class="help-key" data-help="portatil" aria-label="Cómo llevar una composición a otra computadora">?</button></div>
+            <input id="projectFile" type="file" accept=".fosfeno" hidden>
+            <div id="projectList"></div>
+          </details>
+          <p data-guide="portatil" hidden>Guardar actual incluye el código, sus sectores, fotos y videos locales, y los ajustes visuales. En Efectos → Ajustar podés guardar un operador individual. Abrí el nombre para descargar su archivo .fosfeno. Importalo en otra cabina y tocá Activar o Insertar para usarlo. Las cámaras, las pistas de audio y los recursos externos se conectan en destino.</p>
           <div class="section-line">
             <h3>Comunidad Hydra</h3>
             <button id="fetchCatalog" class="line-button">Abrir catálogo</button>
@@ -146,6 +180,31 @@
           <h3>Puntos de partida</h3>
           <div id="sketchList"></div>
         </section>
+        <section data-viewpane="sectors" class="panel-scroll" hidden>
+          <div class="section-line"><h2>Sectores</h2><button class="help-key" aria-label="Cómo usar sectores" data-help="sectores">?</button></div>
+          <p class="hint" id="sectorHelp" data-guide="sectores" hidden>Elegí una forma y arrastrá sobre la visual. Cada sector tiene su propia imagen y sus efectos. El último de la lista queda arriba.</p>
+          <button id="newSector" class="outline wide" aria-controls="sectorShapes" aria-expanded="false">Dibujar sector ▾</button>
+          <div id="sectorShapes" class="shape-picker" hidden></div>
+          <p class="hint" id="sectorStatus" role="status"></p>
+          <div id="sectorList" class="shape-picker" aria-label="Seleccionar sector"></div>
+          <div id="sectorEdit" hidden>
+            <div class="section-line"><h3 id="sectorTitle"></h3><button id="sectorDelete" class="text-button">Eliminar sector</button></div>
+            <div class="segments"><button id="sectorDeform" aria-pressed="false">Deformar</button><button id="sectorVisible">Ocultar</button><button id="sectorRaise">Subir capa</button><button id="sectorRedraw">Redibujar</button></div>
+            <h3>Imagen del sector</h3>
+            <div class="sector-control"><label>Opacidad<input type="range" id="sectorOpacity" min="0" max="100" value="100"></label><output for="sectorOpacity" id="opacityValue">100%</output></div>
+            <div class="inputs"><button data-sector-src="sketch">Sketch</button><button data-sector-src="s0">Señal s0</button><button id="sectorFileButton">Foto o video</button></div>
+            <button id="sectorCamera" class="outline wide" hidden>Conectar webcam para el sector</button>
+            <input type="file" id="sectorFile" hidden accept="image/*,video/*">
+            <button id="sectorPaint" class="auto" aria-pressed="false"><span class="switch"></span>Pinceladas en este sector</button>
+            <div id="sectorBrushControl" class="sector-control" hidden><label>Grosor del pincel<input type="range" id="sectorBrushSize" min="0" max="100" value="42"></label><output for="sectorBrushSize" id="sectorBrushValue">42%</output></div>
+            <div class="section-line"><h3>Efectos del sector</h3><button id="addSectorEffect" aria-expanded="false" aria-controls="sectorFx">Agregar ▾</button></div>
+            <div id="sectorFx" class="shape-picker" hidden></div>
+            <div id="sectorControls"></div>
+          </div>
+          <button id="applySectors" class="outline wide" hidden>Aplicar sectores al proyector</button>
+          <div class="inputs two"><button id="saveSectors">Guardar sectores</button><button id="loadSectors">Recuperar guardados</button></div>
+          <p data-guide="sectores" hidden>Guarda las formas, sus efectos y sus archivos en este navegador. El sketch principal se guarda en Biblioteca.</p>
+        </section>
         <section data-viewpane="signal" id="panel" hidden>
           <nav class="tabs" aria-label="Secciones de señal">
             <button data-tab="input">Imagen</button><button data-tab="audio">Audio</button
@@ -153,10 +212,10 @@
           </nav>
           <div class="panel-scroll">
             <section data-pane="input" hidden>
-              <h3>Fuente visual</h3>
-              <p class="hint">
-                Tu fuente entra al sketch por src(s0). Podés usar una cámara virtual o capturar la
-                ventana de otro programa.
+              <h3>Fuente visual <button class="help-key" data-help="imagen" aria-label="Ayuda sobre fuente visual">?</button></h3>
+              <p data-guide="imagen" hidden>
+                Webcam pide acceso a la cámara. Cuando aparezcan los nombres, podés elegir una.
+                Mezclar al conectar agrega la entrada s0 al sketch. Apagalo si querés usarla sólo en un sector o conectarla desde tu código.
               </p>
               <div class="inputs">
                 <button id="camera"><i data-icon="camera"></i>Webcam</button
@@ -164,17 +223,26 @@
                 ><button id="fileVisual"><i data-icon="upload"></i>Foto o video</button>
               </div>
               <input type="file" hidden id="visualFile" accept="image/*,video/*" />
+              <div id="cameras" class="camera-list" role="group" aria-label="Conectar una cámara"></div>
+              <button id="autoMixInput" class="auto" aria-pressed="true"><span class="switch"></span>Mezclar al conectar</button>
+              <p class="hint" id="cameraStatus" role="status" hidden></p>
+              <button id="cancelVisual" class="text-button" hidden>Cancelar conexión</button>
+              <div id="sourcePreview"></div>
               <div class="source-line">
                 <span id="visualName">Sin fuente conectada</span
                 ><button class="text-button" id="clearVisual" hidden>Quitar</button>
               </div>
-              <button id="insertSource" class="outline wide">Insertar src(s0) en mi mezcla</button>
+              <div class="inputs two">
+                <button id="insertSource" class="outline">Mezclar con el sketch</button>
+                <button id="sourceOnly" class="outline">Ver sólo la fuente</button>
+              </div>
+              <p id="routeStatus" class="hint" role="status"></p>
               <h3>Tratamiento</h3>
               <div class="segments">
                 <button data-brush="off">Señal directa</button
                 ><button data-brush="on">Pinceladas</button>
               </div>
-              <p class="hint">
+              <p data-guide="imagen" hidden>
                 Pinceladas reconstruye la imagen en capas. Los graves ensanchan los trazos.
               </p>
               <div id="inputRanges"></div>
@@ -183,8 +251,8 @@
               </button>
             </section>
             <section data-pane="audio" hidden>
-              <h3>Entrada de sonido</h3>
-              <p class="hint">
+              <h3>Entrada de sonido <button class="help-key" data-help="audio" aria-label="Ayuda sobre entrada de sonido">?</button></h3>
+              <p data-guide="audio" hidden>
                 Los sketches pueden leer graves, medios y agudos en a.fft. El micrófono se analiza en
                 silencio.
               </p>
@@ -192,6 +260,10 @@
                 <button id="mic"><i data-icon="mic"></i><span>Activar micrófono</span></button
                 ><button id="record"><i data-icon="record"></i><span>Grabar muestra</span></button>
               </div>
+              <button class="auto" id="internalPulse" aria-pressed="false">
+                <span class="switch"></span>Pulso interno sin audio
+              </button>
+              <p data-guide="audio" hidden>El pulso simula un ritmo cuando no hay audio. Tempo marca los BPM y Sensibilidad ajusta cuánto responde la mezcla.</p>
               <div id="audioRanges"></div>
               <div class="spectrum" id="spectrum" aria-label="Espectro de audio"></div>
               <div class="section-line mini">
@@ -199,33 +271,39 @@
                 <button class="line-button" id="importAudio"><i data-icon="plus"></i>Importar</button>
               </div>
               <input type="file" id="audioFile" hidden multiple accept="audio/*" />
-              <p class="hint">
+              <p data-guide="audio" hidden>
                 Cada pista se guarda en este navegador. Podés hacer sonar varias en bucle a la vez.
               </p>
               <div id="tracks"></div>
             </section>
             <section data-pane="out" hidden>
-              <h3>Proyección</h3>
+              <h3>Proyección <button class="help-key" data-help="salidas" aria-label="Ayuda sobre proyección">?</button></h3>
               <div class="action-list">
                 <button id="fullPanel"><i data-icon="expand"></i><span>Pantalla completa</span></button
                 ><button id="separate">
                   <i data-icon="external"></i><span>Abrir ventana de salida</span>
                 </button>
               </div>
-              <p class="hint">
+              <p data-guide="salidas" hidden>
                 Mové la ventana de salida al proyector y hacé doble clic para ampliarla. También
                 podés capturarla en OBS mientras manejás esta cabina.
               </p>
-              <h3>Resolución</h3>
+              <h3>Resolución <button class="help-key" data-help="calidad" aria-label="Ayuda sobre resolución">?</button></h3>
+              <p data-guide="calidad" hidden>Auto ajusta el detalle para mantener la fluidez. Elegí una altura fija si necesitás una salida constante.</p>
               <div id="quality" class="segments compact">
                 <button data-q="auto">Auto</button><button data-q="540">540p</button
                 ><button data-q="720">720p</button><button data-q="1080">1080p</button>
               </div>
+              <p id="codeResolution" class="hint" hidden></p>
               <h3>Teclado</h3>
               <dl class="keys">
                 <div>
-                  <dt>Ejecutar selección o bloque</dt>
+                  <dt>Ejecutar línea</dt>
                   <dd>Ctrl ↵</dd>
+                </div>
+                <div>
+                  <dt>Ejecutar bloque</dt>
+                  <dd>Alt ↵</dd>
                 </div>
                 <div>
                   <dt>Ejecutar todo</dt>
@@ -250,15 +328,36 @@
         </section>
       </aside>
     </main>
+    <dialog id="helpDialog" aria-labelledby="helpTitle">
+      <div class="section-line"><h2 id="helpTitle"></h2><button id="closeHelp" aria-label="Cerrar ayuda">Cerrar ×</button></div>
+      <div id="helpContent"></div>
+      <div id="guideActions" class="segments" hidden><button id="lineGuide" aria-pressed="false">Comentarios por línea</button><button id="copyGuide">Copiar con guía</button></div>
+      <button id="moreHelp" hidden>Seguir leyendo ↓</button>
+    </dialog>
     <div class="toast" id="toast" role="status"></div>
-    <script src="vendor/dist/hydra-synth.js"></script>
+    <div id="hydra-ui"></div>
+    <script src="vendor/dist/hydra-synth.js?v=2.3"></script>
+    <script src="vendor/p5/p5.min.js"></script>
+    <script src="vendor/p5/hydra-wrapper.js"></script>
+    <script src="vendor/patch-bay/client.js"></script>
+    <script src="src/network.js"></script>
     <script src="vendor/codemirror/lib/codemirror.js"></script>
     <script src="vendor/codemirror/mode/javascript/javascript.js"></script>
     <script src="vendor/codemirror/addon/edit/matchbrackets.js"></script>
+    <script src="vendor/codemirror/addon/comment/comment.js"></script>
+    <script src="vendor/beautify/beautify.min.js"></script>
     <script src="vendor/acorn/dist/acorn.js"></script>
-    <script src="src/sketches.js?v=2"></script>
-    <script src="src/engine.js?v=2"></script>
-    <script src="src/media.js?v=2"></script>
-    <script src="src/app.js?v=2.1"></script>
+    <script src="vendor/hydra-gallery/examples.js"></script>
+    <script src="src/score-tools.js?v=2.7"></script>
+    <script src="src/sketches.js?v=2.7"></script>
+    <script src="src/engine.js?v=2.7"></script>
+    <script src="src/media.js?v=2.3"></script>
+    <script src="src/visual-input.js?v=2.4"></script>
+    <script src="src/sectors.js?v=2.7"></script>
+    <script src="src/layout.js?v=2.7"></script>
+    <script src="src/compositions.js?v=2.7"></script>
+    <script src="src/code-guide.js?v=2.7"></script>
+    <script src="src/operator-editor.js?v=2.7"></script>
+    <script src="src/app.js?v=2.7"></script>
   </body>
 </html>
