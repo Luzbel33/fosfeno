@@ -1,8 +1,9 @@
 // Bump the asset version when publishing a new edition of the cabina.
 const prefix = 'fosfeno-' + new URL(self.registration.scope).pathname + '-'
-const cacheName = prefix + 'v2.0.17'
+const cacheName = prefix + 'v2.0.17.1'
 const files = [
   'index.html',
+  'abrir.html',
   'style.css?v=2.17',
   'src/sketches.js?v=2.16',
   'vendor/acorn/dist/acorn.js',
@@ -64,12 +65,14 @@ self.addEventListener('fetch', (event) => {
   const req = event.request
   if (req.method !== 'GET') return
   const root = new URL(self.registration.scope)
+  const path = new URL(req.url).pathname
   const documentRequest = req.mode === 'navigate' &&
-    [root.pathname,root.pathname+'index.html'].includes(new URL(req.url).pathname)
+    [root.pathname,root.pathname+'index.html',root.pathname+'abrir.html'].includes(path)
   if (documentRequest) {
     const fallback = async () => {
       const cache = await caches.open(cacheName)
-      return await cache.match(new URL('index.html',root).href) || Response.error()
+      const entry = path===root.pathname+'abrir.html' ? 'abrir.html' : 'index.html'
+      return await cache.match(new URL(entry,root).href) || Response.error()
     }
     // The HTML picks the versioned bundle. Keep the complete cached edition
     // for offline boot, and use the server's current entry when connected.

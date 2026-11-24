@@ -1,0 +1,48 @@
+<!doctype html>
+<html lang="es">
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Abrir Fosfeno 2.17</title>
+  <body>
+    <p id="estado" role="status">Abriendo Fosfeno…</p>
+    <a id="continuar" href="./" hidden>Continuar al estudio</a>
+    <script>
+      const destino = new URL(location.protocol==='file:' ? 'index.html' : './', location.href)
+      destino.search = location.search
+      destino.hash = location.hash
+      const continuar = document.getElementById('continuar')
+      continuar.href = destino.href
+
+      async function abrir() {
+        const workers = navigator.serviceWorker
+        const actual = new URL('sw.js?v=2.17', location.href).href
+        // Older workers serve their cached index for every query string on the home URL.
+        if (workers?.controller && workers.controller.scriptURL !== actual) {
+          await workers.register(actual, {updateViaCache:'none'})
+          if (workers.controller?.scriptURL !== actual) {
+            await new Promise((resolve, reject) => {
+              const comprobar = () => {
+                if (workers.controller?.scriptURL !== actual) return
+                clearTimeout(limite)
+                workers.removeEventListener('controllerchange', comprobar)
+                resolve()
+              }
+              const limite = setTimeout(() => {
+                workers.removeEventListener('controllerchange', comprobar)
+                reject(new Error('Actualización pendiente'))
+              }, 20000)
+              workers.addEventListener('controllerchange', comprobar)
+              comprobar()
+            })
+          }
+        }
+        location.replace(destino.href)
+      }
+
+      abrir().catch(() => {
+        document.getElementById('estado').textContent = 'No se pudo actualizar Fosfeno. Revisá la conexión y recargá esta página para reintentar.'
+        continuar.hidden = false
+      })
+    </script>
+  </body>
+</html>
