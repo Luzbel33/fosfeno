@@ -1,21 +1,23 @@
 // Bump the asset version when publishing a new edition of the cabina.
 const prefix = 'fosfeno-' + new URL(self.registration.scope).pathname + '-'
-const cacheName = prefix + 'v2.0.7'
+const cacheName = prefix + 'v2.0.17'
 const files = [
   'index.html',
-  'style.css?v=2.7',
-  'src/sketches.js?v=2.7',
+  'style.css?v=2.17',
+  'src/sketches.js?v=2.16',
   'vendor/acorn/dist/acorn.js',
-  'src/engine.js?v=2.7',
-  'src/media.js?v=2.3',
+  'src/engine.js?v=2.16',
+  'src/media.js?v=2.16',
   'src/visual-input.js?v=2.4',
-  'src/app.js?v=2.7',
-  'src/score-tools.js?v=2.7',
-  'src/sectors.js?v=2.7',
-  'src/layout.js?v=2.7',
-  'src/compositions.js?v=2.7',
-  'src/code-guide.js?v=2.7',
-  'src/operator-editor.js?v=2.7',
+  'src/app.js?v=2.17',
+  'src/score-tools.js?v=2.16',
+  'src/sectors.js?v=2.17',
+  'src/sector-program.js?v=2.16',
+  'src/loops.js?v=2.17',
+  'src/layout.js?v=2.17',
+  'src/compositions.js?v=2.16',
+  'src/code-guide.js?v=2.16',
+  'src/operator-editor.js?v=2.16',
   'vendor/dist/hydra-synth.js?v=2.3',
   'vendor/p5/p5.min.js',
   'vendor/p5/hydra-wrapper.js',
@@ -62,11 +64,19 @@ self.addEventListener('fetch', (event) => {
   const req = event.request
   if (req.method !== 'GET') return
   const root = new URL(self.registration.scope)
-  const key =
-    req.mode === 'navigate' &&
-    [root.pathname, root.pathname + 'index.html'].includes(new URL(req.url).pathname)
-      ? new URL('index.html', root).href
-      : req.url
+  const documentRequest = req.mode === 'navigate' &&
+    [root.pathname,root.pathname+'index.html'].includes(new URL(req.url).pathname)
+  if (documentRequest) {
+    const fallback = async () => {
+      const cache = await caches.open(cacheName)
+      return await cache.match(new URL('index.html',root).href) || Response.error()
+    }
+    // The HTML picks the versioned bundle. Keep the complete cached edition
+    // for offline boot, and use the server's current entry when connected.
+    event.respondWith(fetch(req,{cache:'no-cache'}).then(response=>response.ok ? response : fallback(),fallback))
+    return
+  }
+  const key=req.url
   if (!urls.has(key)) return
   event.respondWith(
     caches.open(cacheName).then(async (cache) => (await cache.match(key)) || fetch(req))

@@ -2,6 +2,8 @@ class BrushSurface {
   constructor() {
     this.canvas = document.createElement('canvas')
     this.sample = document.createElement('canvas')
+    this.finish = document.createElement('canvas')
+    this.silhouette = document.createElement('canvas')
     this.ctx = this.canvas.getContext('2d', { alpha: false })
     this.read = this.sample.getContext('2d', { willReadFrequently: true, alpha: false })
     this.reset()
@@ -11,9 +13,18 @@ class BrushSurface {
     this.stamp = -1
     this.lastPaint = -100
     this.pixels = null
+    this.progress = 0
+    this.source = null
   }
-  paint(el, now, brush, bass) {
-    if (now - this.lastPaint < 56) return this.canvas
+  paint(el, now, brush, bass, speed = 1, detail = .65, inverse = false) {
+    if (this.source!==el || this.inverse!==inverse) { this.reset(); this.source=el; this.inverse=inverse }
+    const still = el instanceof HTMLImageElement
+    const result = () => {
+      if (inverse) return this.ticks<=1 ? el : this.finish
+      return this.progress>=1 && detail===1 ? el : detail ? this.finish : this.canvas
+    }
+    if (this.progress>=1 && still && detail===this.lastDetail && brush===this.lastBrush) return result()
+    if (this.ticks && now - this.lastPaint < 42) return result()
     const w = el.videoWidth || el.naturalWidth || el.width,
       h = el.videoHeight || el.naturalHeight || el.height
     if (!w || !h) return null
@@ -21,15 +32,20 @@ class BrushSurface {
     if (!this.ticks) {
       this.canvas.width = Math.max(4, Math.round(w * scale))
       this.canvas.height = Math.max(4, Math.round(h * scale))
+      this.finish.width = this.canvas.width
+      this.finish.height = this.canvas.height
       this.sample.width = Math.max(3, Math.round(this.canvas.width / 3))
       this.sample.height = Math.max(3, Math.round(this.canvas.height / 3))
       this.ctx.fillStyle = '#15101d'
       this.ctx.fillRect(0, 0, this.canvas.width, this.canvas.height)
     }
+    this.progress = Math.min(1,this.progress+(this.ticks ? Math.min(250,now-this.lastPaint) : 42)*speed/7000)
     this.lastPaint = now
+    this.lastDetail = detail
+    this.lastBrush = brush
     const sw = this.sample.width,
       sh = this.sample.height,
-      stamp = el.currentTime ?? 0
+      stamp = still ? 0 : el.currentTime ?? now
     if (stamp !== this.stamp || !this.pixels) {
       this.read.drawImage(el, 0, 0, sw, sh)
       this.pixels = this.read.getImageData(0, 0, sw, sh).data
@@ -38,8 +54,9 @@ class BrushSurface {
     const data = this.pixels,
       ctx = this.ctx
     const light = (i) => data[i] * 0.25 + data[i + 1] * 0.6 + data[i + 2] * 0.15
-    const coarse = 1 + 2.4 * Math.exp(-this.ticks / 24)
-    for (let i = 0; i < 190; i++) {
+    const coarse = 1 + 2.4 * (inverse ? this.progress**2 : (1-this.progress)**4)
+    const strokes = Math.round(75+110*speed)
+    for (let i = 0; i < strokes; i++) {
       const x = 1 + Math.floor(Math.random() * (sw - 2)),
         y = 1 + Math.floor(Math.random() * (sh - 2)),
         pos = 4 * (y * sw + x)
@@ -62,7 +79,38 @@ class BrushSurface {
       ctx.stroke()
     }
     this.ticks++
-    return this.canvas
+    if (inverse || (detail && !(this.progress===1 && detail===1))) {
+      const ctx = this.finish.getContext('2d'), {width,height} = this.finish
+      ctx.globalAlpha=1
+      ctx.drawImage(this.canvas,0,0)
+      ctx.globalAlpha=inverse ? (1-this.progress)**2 : detail*this.progress**2
+      ctx.drawImage(el,0,0,width,height)
+      if (inverse && this.progress>.45 && detail<1) {
+        const small=this.silhouette
+        const columns=Math.max(4,Math.round(22*width/Math.max(width,height)))
+        const rows=Math.max(4,Math.round(22*height/Math.max(width,height)))
+        if (small.width!==columns || small.height!==rows) {
+          small.width=columns; small.height=rows
+        }
+        const silhouette=small.getContext('2d',{willReadFrequently:true})
+        silhouette.drawImage(el,0,0,small.width,small.height)
+        const pixels=silhouette.getImageData(0,0,small.width,small.height)
+        const p=pixels.data
+        let average=0
+        for (let i=0;i<p.length;i+=4) average+=(p[i]*.25+p[i+1]*.6+p[i+2]*.15)*4/p.length
+        for (let i=0;i<p.length;i+=4) {
+          const light=p[i]*.25+p[i+1]*.6+p[i+2]*.15
+          p[i]=p[i+1]=p[i+2]=light>=average ? 223 : 19
+        }
+        silhouette.putImageData(pixels,0,0)
+        ctx.globalAlpha=(1-detail)*(this.progress-.45)/.55
+        ctx.imageSmoothingEnabled=false
+        ctx.drawImage(small,0,0,width,height)
+        ctx.imageSmoothingEnabled=true
+      }
+      ctx.globalAlpha=1
+    }
+    return result()
   }
 }
 

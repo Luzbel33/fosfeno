@@ -1,3 +1,4 @@
+const { openStudio } = require('./studio-nav.cjs')
 const assert = require('node:assert/strict')
 const { chromium } = require('playwright')
 const { visit } = require('./compare-hydra.cjs')
@@ -27,6 +28,7 @@ async function checkPixel(page, rgb) {
 
 async function compare(page) {
   const initial = page.url()
+  if (await page.locator('#studioNav').count() && !await page.locator('#run').isVisible()) await openStudio(page,'code')
   const length = await page.evaluate(() => {
     window.runPath = []
     window.seenMark = false
@@ -85,7 +87,7 @@ async function checkLocalGuards(page) {
   await page.goto(link.href)
   await page.waitForFunction((code) => window.cm?.getValue() === code, code)
   assert.equal(await page.evaluate(() => window.linkRuns), undefined)
-  if (!await page.locator('#run').isVisible()) await page.locator('[data-view=code]').click()
+  if (!await page.locator('#run').isVisible()) await openStudio(page,'code')
   await page.locator('#run').click()
   await checkPixel(page, [0, 0, 255])
   assert.equal(await page.evaluate(() => window.linkRuns), 1)
@@ -104,7 +106,7 @@ async function checkLocalGuards(page) {
   assert.equal(await pasted.evaluate(() => window.linkRuns), undefined)
   await pasted.close()
 
-  if (!await page.locator('#liveEdit').isVisible()) await page.locator('[data-view=code]').click()
+  if (!await page.locator('#run').isVisible()) await openStudio(page,'code')
   await page.locator('#liveEdit').click()
   await page.locator('#run').click()
   const length = await page.evaluate(() => history.length)

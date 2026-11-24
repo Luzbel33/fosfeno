@@ -7,25 +7,36 @@
     <title>Fosfeno — Hydra en vivo</title>
     <link rel="icon" href="assets/mark.svg" />
     <link rel="stylesheet" href="vendor/codemirror/lib/codemirror.css" />
-    <link rel="stylesheet" href="style.css?v=2.7" />
+    <link rel="stylesheet" href="style.css?v=2.17" />
   </head>
   <body>
     <header class="topbar">
       <div class="brand"><img src="assets/mark.svg" alt="" /><span>FOSFENO</span></div>
-      <span class="brand-detail">Hydra <em>/</em> live coding</span>
+      <nav id="studioNav" aria-label="Herramientas de edición">
+        <button data-view="sectors" id="backToLayers" aria-controls="layerDesk"><i data-icon="layers"></i><span>Sectores</span></button>
+        <button data-view="code" aria-controls="editorPage"><i data-icon="code"></i><span>Código</span></button>
+        <button data-view="library" aria-controls="libraryPage"><i data-icon="grid"></i><span>Biblioteca</span></button>
+        <button data-view="signal" aria-controls="panel"><i data-icon="camera"></i><span>Imagen</span></button>
+        <button id="signalOpen" aria-controls="panel"><i data-icon="wave"></i><span>Audio</span></button>
+      </nav>
+      <div id="previewDock"></div>
       <div class="top-actions">
-        <button id="soundOpen" class="minimal" aria-label="Abrir audio">
-          <i data-icon="wave"></i><span>Audio</span><b class="signal-dot"></b></button
-        ><button id="project" class="primary" title="Abrir una ventana con la imagen sola"><i data-icon="external"></i><span>Proyectar</span></button>
+        <div id="recordTop"><div id="loopActions">
+          <button id="loopButton" class="record-button" aria-pressed="false"><i data-icon="record"></i><span>Grabar loop</span></button>
+          <button id="openLoops" aria-controls="loopLibrary">Mis loops</button>
+        </div></div>
+        <button id="project" class="primary" aria-label="Proyectar" title="Abrir una ventana con la imagen sola"><i data-icon="external"></i><span>Proyectar</span></button>
       </div>
     </header>
     <main class="workbench">
       <section class="output-area" id="previewArea" aria-labelledby="outputTitle">
         <div class="output-head">
           <h1 id="outputTitle"><b class="dot"></b>Salida en vivo</h1>
-          <div class="preview-actions">
-            <button id="chooseOutput" class="output-choice" aria-controls="outputChoices" aria-expanded="false">Principal · o0 ▾</button>
-            <button id="focusPreview" aria-pressed="false"><i data-icon="expand"></i><span>Ampliar</span></button>
+          <div class="preview-actions" id="previewActions">
+            <button id="chooseOutput" class="output-choice" aria-controls="outputChoices" aria-expanded="false" aria-label="Elegir salida. Principal · o0">
+              <span id="outputCaption">Principal · o0</span><span id="outputCompact">Salida o0</span><span aria-hidden="true">▾</span>
+            </button>
+            <button id="focusPreview" aria-pressed="false" aria-label="Ampliar visual" title="Ampliar visual"><i data-icon="expand"></i><span>Ampliar</span></button>
           </div>
         </div>
         <div id="outputChoices" hidden>
@@ -43,36 +54,18 @@
             height="600"
             aria-label="Salida del sintetizador Hydra"
           ></canvas>
-          <canvas id="sectorGuide" hidden aria-label="Dibujar o seleccionar un sector sobre la visual"></canvas>
+          <canvas id="sectorGuide" hidden aria-label="Seleccionar, mover o dibujar sectores sobre la visual"></canvas>
+          <span id="touchGuideHint" aria-hidden="true"></span>
           <div id="failure" hidden role="alert"></div>
         </div>
-        <div class="transport">
-          <button
-            id="automate"
-            class="auto"
-            aria-pressed="false"
-            title="Generar una nueva semilla en cada intervalo"
-          >
-            <span class="switch"></span>Autopiloto</button
-          ><button class="help-key" aria-label="Qué hace Autopiloto" data-help="autopiloto">?</button
-          ><button id="interval" title="Cambiar intervalo">60 s <i data-icon="cycle"></i></button
-          ><button id="explore" class="explore" title="Generar otro sketch editable">
-            <i data-icon="shuffle"></i>Explorar</button
-          ><button id="signalOpen" class="sound-summary">
-            <span class="meter" id="meter"></span><span id="signalName">Sin audio</span></button
-          ><span id="resolution">WebGL</span>
-        </div>
-        <p id="autoHelp" data-guide="autopiloto" class="transport-help" hidden>Genera un sketch nuevo al terminar el intervalo. Tocá el tiempo para cambiarlo o usá Explorar para generar uno ahora. Editar el código detiene el cambio automático.</p>
+        <p id="autoHelp" data-guide="autopiloto" hidden>Mientras está encendido, Autopiloto genera, ejecuta y proyecta un sketch nuevo cada vez que llega a cero la cuenta regresiva. Reemplaza el código principal del editor y conserva tus sectores. Sirve para dejar que la visual cambie sola durante un set.</p>
+        <p data-guide="autopiloto" hidden>Tocá el tiempo para cambiar el intervalo. «Explorar» genera un sketch ahora para el destino seleccionado. Apagá Autopiloto o editá el código principal para quedarte con ese sketch.</p>
         <div id="hydraMeter"></div>
       </section>
       <div id="splitter" role="separator" tabindex="0" aria-controls="previewArea" aria-label="Espacio para la visual" aria-valuemin="0" aria-valuemax="100" aria-valuenow="66" title="Arrastrá para ajustar el espacio de la visual"></div>
-      <aside class="studio" aria-label="Estudio de código">
-        <nav class="workspace-tabs" aria-label="Herramientas">
-          <button data-view="code">Código</button><button data-view="library">Biblioteca</button
-          ><button data-view="signal">Señal</button><button data-view="sectors">Sectores</button>
-        </nav>
-        <button id="mixInfo" aria-controls="mixDetail" aria-expanded="false">En salida · Ver mezcla ▾</button>
-        <div id="mixDetail" class="mix-detail" hidden></div>
+      <aside class="studio" aria-label="Mesa de edición">
+        <button id="closeTools" hidden><i data-icon="close"></i>Cerrar panel</button>
+        <p id="layerIssue" class="layer-issue" role="status" hidden></p>
         <section data-viewpane="code" id="editorPage">
           <div class="fileline">
             <button class="help-key" aria-label="Ayuda y comentarios del código" data-help="codigo">?</button
@@ -102,38 +95,30 @@
           </div>
           <p data-guide="codigo" hidden>Comentarios por línea agrega explicaciones junto al código mientras editás. Copiá el sketch con su guía para preguntar a una IA como ChatGPT qué hace un operador o cómo cambiarlo. Copiar usa el portapapeles de tu equipo.</p>
           <div class="runline">
-            <button id="run" class="primary"><i data-icon="play"></i>Ejecutar</button
-            ><button id="block" title="Alt + Enter">Bloque</button
-            ><button id="liveEdit" class="auto" aria-pressed="true" title="Actualizar la salida mientras editás el código">
-              <span class="switch"></span>Edición en vivo
-            </button><button class="help-key" aria-label="Cómo funciona Edición en vivo" data-help="edicion">?</button>
+            <button id="run" class="primary"><i data-icon="play"></i>Ejecutar</button>
+            <button id="block" title="Alt + Enter">Bloque</button>
           </div>
-          <p id="liveHelp" data-guide="edicion" class="context-help" hidden>Encendida, los cambios de código y sectores llegan a la salida al editar. Apagala para prepararlos y usá Ejecutar cuando quieras mostrarlos. La cámara y el audio conectados siguen en vivo.</p>
+          <p id="liveHelp" data-guide="edicion" class="context-help" hidden>En vivo actualiza la visual al editar. En modo manual, los cambios quedan preparados hasta que toques Enviar a salida. La cámara y el audio conectados siguen en vivo.</p>
           <div id="codeStatus" class="status" role="status">Iniciando motor…</div>
           <div class="operator-head">
-            <button id="opsToggle" aria-expanded="true" aria-controls="effectPanel">
-              Efectos <span aria-hidden="true">⌄</span></button>
-            <button class="help-key" data-help="efectos" aria-label="Cómo editar los efectos">?</button>
-            <div id="effectModes" class="segments">
-              <button id="addMode" aria-pressed="true">Agregar</button>
-              <button id="adjustMode" aria-pressed="false">Ajustar</button>
-              <button id="removeMode" aria-pressed="false">Quitar</button>
-            </div>
+            <button id="adjustMode" aria-expanded="false" aria-controls="operatorInspector">Editar operadores del código</button>
           </div>
-          <p id="fxHelp" data-guide="efectos" class="context-help" hidden>Agregar inserta en la cadena del cursor o en la salida elegida. En Ajustar elegí una llamada por nombre y línea. Cada campo muestra su expresión o el valor por defecto de Hydra. Ahí podés guardar un operador. Quitar lo retira del código. Ver mezcla muestra lo que se proyecta.</p>
           <div id="effectPanel">
-            <div id="ops" class="operator-grid"></div>
-            <details id="hydraCatalog" class="portable"><summary>Todos los operadores Hydra</summary><div id="hydraChoices"></div></details>
             <div id="operatorInspector" hidden></div>
-            <div id="activeEffects" class="operator-grid" hidden></div>
           </div>
         </section>
-        <section data-viewpane="library" class="panel-scroll" hidden>
+        <section data-viewpane="library" class="panel-scroll" id="libraryPage" hidden>
           <div class="section-line">
             <h2>Biblioteca <button class="help-key" data-help="biblioteca" aria-label="Ayuda sobre la biblioteca">?</button></h2>
             <button id="blank" class="line-button"><i data-icon="plus"></i>En blanco</button>
           </div>
-          <p data-guide="biblioteca" hidden>Tocá un título para abrirlo. Mezclar suma una capa al código actual. Podés quitarla en Código → Efectos → Quitar.</p>
+          <p data-guide="biblioteca" hidden>Elegí el destino en Sectores. Mezclar enciende una capa en ese destino. Tocá el mismo botón para apagarla. Cada sketch mezclado dispone de sus propias salidas Hydra.</p>
+          <p id="sectorTarget" class="hint">Destino · Toda la visual</p>
+          <details class="portable" id="loopLibrary"><summary>Mis loops de video</summary>
+            <div class="segments"><button id="importLoop">Importar video</button><button class="help-key" data-help="loops" aria-label="Cómo grabar y reutilizar loops">?</button></div>
+            <input id="loopFile" type="file" accept="video/*" hidden><div id="loopList"></div>
+          </details>
+          <p data-guide="loops" hidden>Grabar loop captura la salida o el sector seleccionado con sus efectos. Tocá Guardar loop para terminar antes de los 30 segundos. En Mis loops, Usar carga el video en el destino indicado. Descargar guarda una copia fuera de este navegador.</p>
           <div class="generator">
             <h3>Explorar una semilla</h3>
             <div id="symChoices" class="segments">
@@ -180,30 +165,94 @@
           <h3>Puntos de partida</h3>
           <div id="sketchList"></div>
         </section>
-        <section data-viewpane="sectors" class="panel-scroll" hidden>
-          <div class="section-line"><h2>Sectores</h2><button class="help-key" aria-label="Cómo usar sectores" data-help="sectores">?</button></div>
-          <p class="hint" id="sectorHelp" data-guide="sectores" hidden>Elegí una forma y arrastrá sobre la visual. Cada sector tiene su propia imagen y sus efectos. El último de la lista queda arriba.</p>
-          <button id="newSector" class="outline wide" aria-controls="sectorShapes" aria-expanded="false">Dibujar sector ▾</button>
-          <div id="sectorShapes" class="shape-picker" hidden></div>
-          <p class="hint" id="sectorStatus" role="status"></p>
-          <div id="sectorList" class="shape-picker" aria-label="Seleccionar sector"></div>
-          <div id="sectorEdit" hidden>
-            <div class="section-line"><h3 id="sectorTitle"></h3><button id="sectorDelete" class="text-button">Eliminar sector</button></div>
-            <div class="segments"><button id="sectorDeform" aria-pressed="false">Deformar</button><button id="sectorVisible">Ocultar</button><button id="sectorRaise">Subir capa</button><button id="sectorRedraw">Redibujar</button></div>
-            <h3>Imagen del sector</h3>
-            <div class="sector-control"><label>Opacidad<input type="range" id="sectorOpacity" min="0" max="100" value="100"></label><output for="sectorOpacity" id="opacityValue">100%</output></div>
-            <div class="inputs"><button data-sector-src="sketch">Sketch</button><button data-sector-src="s0">Señal s0</button><button id="sectorFileButton">Foto o video</button></div>
-            <button id="sectorCamera" class="outline wide" hidden>Conectar webcam para el sector</button>
-            <input type="file" id="sectorFile" hidden accept="image/*,video/*">
-            <button id="sectorPaint" class="auto" aria-pressed="false"><span class="switch"></span>Pinceladas en este sector</button>
-            <div id="sectorBrushControl" class="sector-control" hidden><label>Grosor del pincel<input type="range" id="sectorBrushSize" min="0" max="100" value="42"></label><output for="sectorBrushSize" id="sectorBrushValue">42%</output></div>
-            <div class="section-line"><h3>Efectos del sector</h3><button id="addSectorEffect" aria-expanded="false" aria-controls="sectorFx">Agregar ▾</button></div>
-            <div id="sectorFx" class="shape-picker" hidden></div>
-            <div id="sectorControls"></div>
+        <section data-viewpane="sectors" class="panel-scroll layer-inspector" id="layerDesk" aria-labelledby="sectorsHeading" hidden>
+          <div class="sector-header">
+            <h2 id="sectorsHeading">Sectores</h2>
+            <button id="newSector" class="outline" aria-label="Nuevo sector" aria-controls="sectorShapes" aria-expanded="false"><i data-icon="plus"></i><span class="new-sector-label">Nuevo sector</span><span class="new-sector-short">Nuevo</span></button>
+            <button class="help-key" aria-label="Ayuda de sectores y efectos" data-help="efectos">?</button>
+            <button id="closeSectors" aria-label="Cerrar panel de Sectores" title="Cerrar panel de Sectores"><i data-icon="close"></i></button>
           </div>
-          <button id="applySectors" class="outline wide" hidden>Aplicar sectores al proyector</button>
-          <div class="inputs two"><button id="saveSectors">Guardar sectores</button><button id="loadSectors">Recuperar guardados</button></div>
-          <p data-guide="sectores" hidden>Guarda las formas, sus efectos y sus archivos en este navegador. El sketch principal se guarda en Biblioteca.</p>
+          <div id="sectorShapes" class="shape-picker layer-palette" hidden></div>
+          <p id="sectorStatus" class="hint" role="status"></p>
+          <div id="layerOverview" role="group" aria-label="Sectores de la visual">
+            <section id="sectorDetail" aria-labelledby="effectTarget" hidden>
+              <h3 id="effectTarget" class="sr-only">Toda la visual</h3>
+              <div class="sector-stack sector-only">
+                <div class="sector-stack-bar">
+                  <div id="sectorLayerList" role="group" aria-label="Capas del sector"></div>
+                  <button id="addSectorLayer" aria-label="Añadir capa"><i data-icon="plus"></i>Capa</button>
+                </div>
+                <div class="sector-stack-options">
+                  <button id="sectorStyleToggle" aria-controls="sectorStyle" aria-expanded="false">Estilo</button>
+                  <div id="sectorLayerActions" role="group" aria-label="Orden de la capa" hidden>
+                    <button id="raiseSectorLayer" aria-label="Traer capa adelante" title="Traer capa adelante">↑</button>
+                    <button id="lowerSectorLayer" aria-label="Llevar capa atrás" title="Llevar capa atrás">↓</button>
+                    <button id="removeSectorLayer" aria-label="Quitar capa" title="Quitar capa">×</button>
+                  </div>
+                </div>
+              </div>
+              <div class="sector-commands" role="group" aria-label="Herramientas para la selección">
+                <button id="addSectorEffect" class="primary" aria-label="Añadir efecto" aria-controls="effectPicker" aria-describedby="effectTarget" aria-expanded="false"><i data-icon="plus"></i>Efecto</button>
+                <button id="sectorMediaToggle" class="sector-only" aria-controls="sectorMedia" aria-expanded="false">Imagen</button>
+                <button id="sectorDeform" class="sector-only" aria-pressed="false">Deformar</button>
+                <button id="sectorCodeToggle" class="sector-only" aria-label="Código del sector" aria-expanded="false" aria-controls="layerCode">Código</button>
+              </div>
+              <div id="sectorStyle" class="layer-palette sector-only" hidden>
+                <button id="sectorFillToggle" class="auto" aria-pressed="false"><span class="switch"></span>Relleno</button>
+                <div id="sectorFillControls" hidden>
+                  <div class="sector-swatches" data-sector-colors="fill" aria-label="Colores de relleno"></div>
+                  <label class="sector-color"><span aria-hidden="true" id="sectorFillSample"></span><input type="text" id="sectorFillColor" aria-label="Color de relleno en hexadecimal" maxlength="7" spellcheck="false"></label>
+                </div>
+                <button id="sectorStrokeToggle" class="auto" aria-pressed="false"><span class="switch"></span>Borde</button>
+                <div id="sectorStrokeControls" hidden>
+                  <div class="sector-swatches" data-sector-colors="stroke" aria-label="Colores de borde"></div>
+                  <label class="sector-color"><span aria-hidden="true" id="sectorStrokeSample"></span><input type="text" id="sectorStrokeColor" aria-label="Color de borde en hexadecimal" maxlength="7" spellcheck="false"></label>
+                  <div class="sector-control"><label>Grosor<input type="range" id="sectorStrokeWidth" min="1" max="24" value="4"></label><output for="sectorStrokeWidth" id="sectorStrokeValue">4 px</output></div>
+                </div>
+              </div>
+              <div id="effectPicker" class="effect-picker" hidden>
+                <input id="effectSearch" type="search" placeholder="Buscar un efecto Hydra…" aria-label="Buscar un efecto Hydra">
+                <div id="sectorFx" class="shape-picker" aria-label="Efectos rápidos"></div>
+                <div id="hydraChoices" aria-label="Operadores Hydra" hidden></div>
+                <button id="sectorLibrary" class="picker-link"><i data-icon="grid"></i>Mezclar desde la biblioteca</button>
+              </div>
+              <div id="sectorControls" role="group" aria-label="Efectos de la selección"></div>
+              <div id="sectorEdit" hidden>
+                <div id="sectorMedia" class="layer-palette" hidden>
+                  <div class="section-line"><strong>Fuente de imagen</strong></div>
+                  <div class="inputs"><button data-sector-src="sketch">Sketch</button><button data-sector-src="s0">Señal s0</button><button id="sectorFileButton">Foto o video</button></div>
+                  <button id="sectorCamera" class="outline wide" hidden>Conectar webcam para el sector</button>
+                  <div class="segments" id="sectorSourceActions" hidden><button id="sectorClearInput">Quitar del sector</button><button id="sectorDisconnect" hidden>Desconectar entrada s0</button></div>
+                  <input type="file" id="sectorFile" hidden accept="image/*,video/*">
+                  <button id="sectorPaint" class="auto" aria-pressed="false"><span class="switch"></span>Pinceladas en este sector</button>
+                  <div id="sectorBrushControl" hidden>
+                    <div class="sector-control"><label>Grosor<input type="range" id="sectorBrushSize" min="0" max="100" value="42"></label><output for="sectorBrushSize" id="sectorBrushValue">42%</output></div>
+                    <div class="sector-control"><label>Velocidad<input type="range" id="sectorBrushSpeed" min="25" max="300" value="100"></label><output for="sectorBrushSpeed" id="sectorSpeedValue">100%</output></div>
+                    <div class="sector-control"><label>Definición final<input type="range" id="sectorBrushDetail" min="0" max="100" value="65"></label><output for="sectorBrushDetail" id="sectorDetailValue">65%</output></div>
+                    <button id="sectorRepaint">Reiniciar pinceladas</button>
+                    <button id="sectorBrushInverse" class="auto" aria-pressed="false"><span class="switch"></span>A la inversa</button>
+                    <p id="sectorBrushProgress" class="hint brush-progress"></p>
+                  </div>
+                </div>
+                <div class="sector-control layer-opacity"><label>Opacidad de capa<input type="range" id="sectorOpacity" min="0" max="100" value="100"></label><output for="sectorOpacity" id="opacityValue">100%</output></div>
+                <div class="layer-palette" id="layerCode" hidden>
+                  <label class="sr-only" for="sectorCode">Código Hydra del sector</label>
+                  <textarea id="sectorCode" spellcheck="false" rows="4" placeholder="return base().kaleid(5)"></textarea>
+                  <button id="sectorApplyCode">Cargar código en el sector</button>
+                  <p class="hint">Usá base() para leer la imagen del sector. Devolvé una cadena con return o proyectala con .out().</p>
+                </div>
+                <details class="portable layer-actions"><summary>Opciones del sector</summary>
+                  <div class="segments"><button id="sectorRaise">Subir sector</button>
+                    <button id="sectorRedraw">Redibujar</button><button id="sectorDelete">Eliminar sector</button></div>
+                </details>
+              </div>
+            </section>
+          </div>
+          <details id="sectorStorage" class="portable"><summary>Sectores guardados</summary>
+            <div class="segments"><button id="saveSectors">Guardar sectores</button><button id="loadSectors">Recuperar guardados</button></div>
+          </details>
+          <p data-guide="efectos" hidden>Arrastrá desde adentro de un sector para moverlo. Deformar permite mover los puntos del contorno. En Estilo podés colorear el relleno o el borde. Elegí una capa del sector para ajustar sus efectos, imagen, código u opacidad.</p>
+          <p data-guide="efectos" hidden>El interruptor pausa un efecto y conserva su ajuste. Las flechas cambian el orden y × lo quita.</p>
         </section>
         <section data-viewpane="signal" id="panel" hidden>
           <nav class="tabs" aria-label="Secciones de señal">
@@ -213,6 +262,7 @@
           <div class="panel-scroll">
             <section data-pane="input" hidden>
               <h3>Fuente visual <button class="help-key" data-help="imagen" aria-label="Ayuda sobre fuente visual">?</button></h3>
+              <p id="sourceTarget" class="hint" hidden></p>
               <p data-guide="imagen" hidden>
                 Webcam pide acceso a la cámara. Cuando aparezcan los nombres, podés elegir una.
                 Mezclar al conectar agrega la entrada s0 al sketch. Apagalo si querés usarla sólo en un sector o conectarla desde tu código.
@@ -224,31 +274,35 @@
               </div>
               <input type="file" hidden id="visualFile" accept="image/*,video/*" />
               <div id="cameras" class="camera-list" role="group" aria-label="Conectar una cámara"></div>
-              <button id="autoMixInput" class="auto" aria-pressed="true"><span class="switch"></span>Mezclar al conectar</button>
               <p class="hint" id="cameraStatus" role="status" hidden></p>
               <button id="cancelVisual" class="text-button" hidden>Cancelar conexión</button>
               <div id="sourcePreview"></div>
               <div class="source-line">
                 <span id="visualName">Sin fuente conectada</span
-                ><button class="text-button" id="clearVisual" hidden>Quitar</button>
+                ><button class="outline" id="clearVisual" hidden>Desconectar entrada</button>
               </div>
+              <p id="routeStatus" class="hint" role="status"></p>
+              <div id="primaryInputOptions">
+              <button id="autoMixInput" class="auto" aria-pressed="true"><span class="switch"></span>Mezclar al conectar</button>
               <div class="inputs two">
                 <button id="insertSource" class="outline">Mezclar con el sketch</button>
                 <button id="sourceOnly" class="outline">Ver sólo la fuente</button>
               </div>
-              <p id="routeStatus" class="hint" role="status"></p>
               <h3>Tratamiento</h3>
               <div class="segments">
                 <button data-brush="off">Señal directa</button
                 ><button data-brush="on">Pinceladas</button>
               </div>
               <p data-guide="imagen" hidden>
-                Pinceladas reconstruye la imagen en capas. Los graves ensanchan los trazos.
+                Grosor cambia el tamaño de los trazos. Velocidad controla cuánto tarda el proceso. En modo normal, Definición al 100 % termina con la imagen original. A la inversa arranca con la imagen nítida y va hacia pinceladas más gruesas. Bajá Definición al 0 % para terminar en una silueta de claros y oscuros.
               </p>
               <div id="inputRanges"></div>
+              <button id="brushInverse" class="auto" aria-pressed="false" hidden><span class="switch"></span>A la inversa</button>
+              <p id="brushProgress" class="hint brush-progress" hidden></p>
               <button id="repaint" class="outline wide">
                 <i data-icon="cycle"></i>Volver a pintar
               </button>
+              </div>
             </section>
             <section data-pane="audio" hidden>
               <h3>Entrada de sonido <button class="help-key" data-help="audio" aria-label="Ayuda sobre entrada de sonido">?</button></h3>
@@ -327,14 +381,41 @@
           </div>
         </section>
       </aside>
+      <aside id="inspectorDesk" aria-label="Herramienta activa" hidden>
+        <h2 id="codeHeading" class="dock-title">Código Hydra</h2>
+      </aside>
+      <div class="toast" id="toast" role="status"></div>
     </main>
+    <footer id="consoleDock" aria-label="Controles de la sesión">
+      <div class="transport" id="transport" role="group" aria-label="Reproducción y generación">
+        <button
+          id="automate"
+          class="auto"
+          aria-pressed="false"
+          title="Generar una nueva semilla en cada intervalo"
+        >
+          <span class="switch"></span>Autopiloto</button
+        ><button class="help-key" aria-label="Qué hace Autopiloto" data-help="autopiloto">?</button
+        ><button id="interval" title="Cambiar intervalo">60 s <i data-icon="cycle"></i></button
+        ><button id="explore" class="explore" title="Generar otro sketch editable">
+          <i data-icon="shuffle"></i>Explorar</button
+        ><span class="sound-summary"><span class="meter" id="meter" aria-hidden="true"></span><span id="signalName">Sin audio</span></span>
+        <span id="resolution">WebGL</span>
+      </div>
+      <div id="sessionActions" role="group" aria-label="Edición y grabación">
+        <div id="recordBottom"></div>
+        <span id="operationTarget">Destino · Toda la visual</span>
+        <button id="liveEdit" class="auto" aria-pressed="true" aria-label="Edición en vivo" title="Actualizar la salida mientras editás"><span class="switch"></span><span class="live-label">Edición en vivo</span><span class="live-compact">En vivo</span></button>
+        <button class="help-key" aria-label="Cómo funciona Edición en vivo" data-help="edicion">?</button>
+        <button id="applySectors" class="primary" aria-label="Enviar a salida" title="Mostrar los cambios preparados" hidden><span class="send-label">Enviar a salida</span><span class="send-compact">Enviar</span></button>
+      </div>
+    </footer>
     <dialog id="helpDialog" aria-labelledby="helpTitle">
       <div class="section-line"><h2 id="helpTitle"></h2><button id="closeHelp" aria-label="Cerrar ayuda">Cerrar ×</button></div>
       <div id="helpContent"></div>
       <div id="guideActions" class="segments" hidden><button id="lineGuide" aria-pressed="false">Comentarios por línea</button><button id="copyGuide">Copiar con guía</button></div>
       <button id="moreHelp" hidden>Seguir leyendo ↓</button>
     </dialog>
-    <div class="toast" id="toast" role="status"></div>
     <div id="hydra-ui"></div>
     <script src="vendor/dist/hydra-synth.js?v=2.3"></script>
     <script src="vendor/p5/p5.min.js"></script>
@@ -348,16 +429,18 @@
     <script src="vendor/beautify/beautify.min.js"></script>
     <script src="vendor/acorn/dist/acorn.js"></script>
     <script src="vendor/hydra-gallery/examples.js"></script>
-    <script src="src/score-tools.js?v=2.7"></script>
-    <script src="src/sketches.js?v=2.7"></script>
-    <script src="src/engine.js?v=2.7"></script>
-    <script src="src/media.js?v=2.3"></script>
+    <script src="src/score-tools.js?v=2.16"></script>
+    <script src="src/sketches.js?v=2.16"></script>
+    <script src="src/engine.js?v=2.16"></script>
+    <script src="src/media.js?v=2.16"></script>
     <script src="src/visual-input.js?v=2.4"></script>
-    <script src="src/sectors.js?v=2.7"></script>
-    <script src="src/layout.js?v=2.7"></script>
-    <script src="src/compositions.js?v=2.7"></script>
-    <script src="src/code-guide.js?v=2.7"></script>
-    <script src="src/operator-editor.js?v=2.7"></script>
-    <script src="src/app.js?v=2.7"></script>
+    <script src="src/sectors.js?v=2.17"></script>
+    <script src="src/sector-program.js?v=2.16"></script>
+    <script src="src/loops.js?v=2.17"></script>
+    <script src="src/layout.js?v=2.17"></script>
+    <script src="src/compositions.js?v=2.16"></script>
+    <script src="src/code-guide.js?v=2.16"></script>
+    <script src="src/operator-editor.js?v=2.16"></script>
+    <script src="src/app.js?v=2.17"></script>
   </body>
 </html>

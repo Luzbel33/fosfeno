@@ -11,7 +11,7 @@ function packComposition(project) {
     return blobs.length-1
   }
   const manifest = {...project, input:index(project.input),
-    regions:project.regions.map(r=>({...r,file:index(r.file)})), assets}
+    regions:project.regions.map(r=>({...r,file:index(r.file),layers:r.layers?.map(layer=>({...layer,file:index(layer.file)}))})), assets}
   const json = new TextEncoder().encode(JSON.stringify(manifest))
   const length = new DataView(new ArrayBuffer(4))
   length.setUint32(0,json.byteLength)
@@ -56,19 +56,43 @@ async function unpackComposition(blob) {
   if (offset !== blob.size) invalid()
   const fileAt = i => i === null ? null : Number.isInteger(i) && files[i] ? files[i] : invalid()
   const finite = (v,min,max) => Number.isFinite(v) && v>=min && v<=max
+  function readLayer(layer) {
+    if (!['file','sketch','s0'].includes(layer.source) || typeof layer.paint !== 'boolean' ||
+        (layer.opacity != null && !finite(layer.opacity,0,1)) ||
+        (layer.brushSize != null && !finite(layer.brushSize,0,1)) ||
+        (layer.brushSpeed != null && !finite(layer.brushSpeed,.25,3)) ||
+        (layer.brushDetail != null && !finite(layer.brushDetail,0,1)) ||
+        (layer.brushInverse != null && typeof layer.brushInverse!=='boolean') ||
+        (layer.code != null && typeof layer.code!=='string') ||
+        !Array.isArray(layer.fx) || !layer.fx.every(f=>{
+          if (!f || typeof f.name!=='string' || (f.enabled!=null && typeof f.enabled!=='boolean')) return false
+          if (f.kind==='library') return typeof f.code==='string' && finite(f.value,0,1)
+          if (f.kind==='operator') return typeof f.code==='string' && /^\s*\./.test(f.code) &&
+            Array.isArray(f.definitions) && f.definitions.every(d=>typeof d==='string')
+          return !f.kind && Object.hasOwn(sectorEffects,f.name) && finite(f.value,sectorEffects[f.name][1],sectorEffects[f.name][2])
+        }) || (layer.source==='file') !== (layer.file!==null)) invalid()
+    layer.file = fileAt(layer.file)
+  }
   const ids = new Set()
   for (const r of p.regions) {
-    if (!r || !Number.isSafeInteger(r.id) || r.id < 1 || ids.has(r.id) || !sectorShapes.includes(r.shape) ||
+    if (!r || !Number.isSafeInteger(r.id) || r.id < 0 || ids.has(r.id) || typeof r.visible !== 'boolean' ||
+        !(r.id===0 ? r.shape==='Principal' : sectorShapes.includes(r.shape)) ||
         !Array.isArray(r.points) || r.points.length<3 || r.points.length>4096 ||
         !r.points.every(v=>Array.isArray(v) && v.length===2 && v.every(n=>finite(n,0,1))) ||
-        !['file','sketch','s0'].includes(r.source) || typeof r.visible !== 'boolean' || typeof r.paint !== 'boolean' ||
-        (r.opacity != null && !finite(r.opacity,0,1)) ||
-        (r.brushSize != null && !finite(r.brushSize,0,1)) ||
-        !Array.isArray(r.fx) || !r.fx.every(f=>f && Object.hasOwn(sectorEffects,f.name) &&
-          finite(f.value,sectorEffects[f.name][1],sectorEffects[f.name][2]))) invalid()
+        (r.layerId != null && r.layerId!==0)) invalid()
     const [, ,w,h] = regionBounds(r.points)
-    if (!w || !h || (r.source==='file') !== (r.file!==null)) invalid()
-    r.file = fileAt(r.file)
+    if (!w || !h) invalid()
+    if (r.style != null && (r.id===0 || typeof r.style.fillOn!=='boolean' || typeof r.style.strokeOn!=='boolean' ||
+        typeof r.style.fill!=='string' || !sectorColorPattern.test(r.style.fill) ||
+        typeof r.style.stroke!=='string' || !sectorColorPattern.test(r.style.stroke) || !finite(r.style.strokeWidth,1,24))) invalid()
+    if (r.layers != null && (!Array.isArray(r.layers) || r.id===0)) invalid()
+    readLayer(r)
+    const layerIds = new Set()
+    for (const layer of r.layers || []) {
+      if (!layer || !Number.isSafeInteger(layer.layerId) || layer.layerId<1 || layerIds.has(layer.layerId)) invalid()
+      layerIds.add(layer.layerId)
+      readLayer(layer)
+    }
     ids.add(r.id)
   }
   const m = p.settings
@@ -79,6 +103,9 @@ async function unpackComposition(blob) {
       !finite(m.sensitivity,.2,3) || !Number.isFinite(m.bpm) || typeof m.painting!=='boolean' ||
       typeof m.internalPulse!=='boolean' || typeof m.autoMix!=='boolean' ||
       !['libre','x','y','radial'].includes(m.fold) || typeof m.seed!=='string') invalid()
+  if ((m.brushSpeed != null && !finite(m.brushSpeed,.25,3)) ||
+      (m.brushDetail != null && !finite(m.brushDetail,0,1)) ||
+      (m.brushInverse != null && typeof m.brushInverse!=='boolean')) invalid()
   return {...p,input:fileAt(p.input)}
 }
 

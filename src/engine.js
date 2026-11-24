@@ -1,6 +1,6 @@
 // Keep top-level live bindings across block evaluations. Acorn identifies real
 // declarations, leaving GLSL strings, nested JS scopes and comments untouched.
-function compileScore(code, bindings) {
+function compileScore(code, bindings, synchronous = false) {
   const tree = acorn.parse(code, {
     ecmaVersion: 'latest',
     allowAwaitOutsideFunction: true,
@@ -38,7 +38,7 @@ function compileScore(code, bindings) {
   }
   const program = new Function(
     'bindings',
-    'with(bindings){return (async()=>{\n' + hoisted + body + code.slice(end) + '\n})()}'
+    'with(bindings){return (' + (synchronous ? '' : 'async') + '()=>{\n' + hoisted + body + code.slice(end) + '\n})()}'
   )
   return () => program(bindings)
 }
@@ -105,8 +105,6 @@ class VisualEngine {
     window.hydra = window.hydraSynth = this.hydra
     window.bpm = state.bpm
     const engine = this
-    this.graphs = new Map()
-    this.graphVersion = 0
     this.scoreOutputs = new Set()
     // Upstream out() logs compilation failures. Propagate them to the editor so a
     // later bad chain cannot leave half a multi-output patch on screen.
@@ -115,9 +113,7 @@ class VisualEngine {
       this.synth.currentFunctions = []
       output.render(passes)
       const slot = engine.hydra.o.indexOf(output)
-      engine.graphs.set(slot, engine.describeChain(this))
       engine.writing?.add(slot)
-      engine.graphVersion++
     }
     this.audioWasActive = false
     window.a = this.h.a = audio
@@ -162,23 +158,10 @@ class VisualEngine {
   get output() {
     return this.hydra.isRenderingAll ? 'all' : String(this.hydra.o.indexOf(this.hydra.output))
   }
-  describeChain(chain) {
-    return chain.transforms.map(({ name, userArgs }) => {
-      const inputs = (userArgs || []).flatMap(arg => {
-        if (arg?.transforms) return [this.describeChain(arg)]
-        const src = this.hydra.s.indexOf(arg), buffer = this.hydra.o.indexOf(arg)
-        if (src >= 0) return ['s' + src]
-        if (buffer >= 0) return ['o' + buffer]
-        return []
-      })
-      return inputs.length ? name + '(' + inputs.join(', ') + ')' : name
-    }).join(' → ')
-  }
   async run(code, { fresh = false, whole = true, syncOutputs = false } = {}) {
     if (this.running) throw new Error('Esperá a que termine la ejecución actual.')
     this.running = true
     const draws = this.hydra.o.map((o) => o.draw)
-    const oldGraphs = new Map(this.graphs)
     const view = this.output
     const timing = [window.speed, window.bpm, window.fps, window.update, window.afterUpdate]
     const previousBindings = this.bindings,
@@ -214,8 +197,6 @@ class VisualEngine {
       })
       Object.assign(previousBindings, values)
       this.hydra.o.forEach((o, i) => (o.draw = draws[i]))
-      this.graphs = oldGraphs
-      this.graphVersion++
       ;[window.speed, window.bpm, window.fps, window.update, window.afterUpdate] = timing
       this.show(view)
       throw err

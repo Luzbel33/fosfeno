@@ -1,6 +1,8 @@
+const { openStudio } = require('./studio-nav.cjs')
 const assert = require('node:assert/strict')
 const { chromium } = require('playwright')
-const url = process.argv[2] || 'http://127.0.0.1:8736/'
+const url = new URL(process.argv[2] || 'http://127.0.0.1:8736/')
+url.searchParams.set('sketch_id','eerie_ear_0')
 
 async function main() {
   const browser = await chromium.launch({channel:'chromium',args:['--use-angle=d3d11','--enable-unsafe-swiftshader']})
@@ -8,11 +10,11 @@ async function main() {
   async function studio() {
     const p=await browser.newPage({viewport:{width:1100,height:768}})
     p.on('pageerror',e=>failures.push(e.message))
-    await p.goto(url)
+    await p.goto(url.href)
     await p.waitForFunction(()=>window.hydraSynth && window.cm?.getValue().includes('MULTIVERSE'))
     return p
   }
-  const tab=(p,name)=>p.locator('[data-view='+name+']').click()
+  const tab=openStudio
   const setCode=(p,text)=>p.evaluate(text=>cm.setValue(text),text)
   const projects=async p=>{
     await tab(p,'library')
@@ -41,15 +43,19 @@ async function main() {
   }
   try {
     const p=await studio(), initial=await p.evaluate(()=>cm.getValue())
+    await tab(p,'code')
     await p.locator('[data-help=codigo]').click()
     await p.locator('#lineGuide').click()
     assert.ok(await p.locator('.line-note').count()>0)
     assert.equal(await p.evaluate(()=>cm.getValue()),initial)
     await p.locator('[data-help=codigo]').click();await p.locator('#lineGuide').click()
-    await p.locator('#hydraCatalog > summary').click()
-    await p.locator('#hydraChoices summary').getByText('Geometría',{exact:true}).click()
-    await p.locator('#hydraChoices').getByRole('button',{name:'rotate',exact:true}).click()
-    assert.ok((await p.evaluate(()=>cm.getValue())).includes('.rotate(10, 0)'))
+    await tab(p,'sectors')
+    await p.locator('#addSectorEffect').click()
+    await p.locator('#effectSearch').fill('rotate')
+    await p.locator('#hydraChoices').getByRole('button',{name:/^rotate/}).click()
+    assert.match(await p.locator('#sectorControls').innerText(),/rotate/)
+    await p.getByRole('button',{name:'Quitar rotate de toda la visual'}).click()
+    await tab(p,'code')
     await setCode(p,'// Prueba de autoría\nsolid(1,0,0).rotate(-0.75).out(o0)')
     await p.locator('#scoreName').fill('Ensayo portátil')
     await p.locator('#adjustMode').click()
@@ -73,6 +79,7 @@ async function main() {
       const g=c.getContext('2d');g.fillStyle='blue';g.fillRect(0,0,32,32);return c.toDataURL().split(',')[1]
     })
     const chooser=p.waitForEvent('filechooser')
+    await p.locator('#sectorMediaToggle').click()
     await p.locator('#sectorFileButton').click()
     await (await chooser).setFiles({name:'azul.png',mimeType:'image/png',buffer:Buffer.from(image,'base64')})
     await pixels(p,.2,.20,[0,0,255])
@@ -86,6 +93,7 @@ async function main() {
     await pixels(p,.60,.6,[64,64,191])
     await p.locator('#sectorOpacity').fill('80')
     await pixels(p,.60,.6,[102,51,153])
+    await p.getByRole('button',{name:'Toda la visual',exact:true}).click()
     await tab(p,'signal')
     await p.locator('#autoMixInput').click()
     await p.locator('#visualFile').setInputFiles({name:'entrada.png',mimeType:'image/png',buffer:Buffer.from(image,'base64')})
@@ -111,6 +119,7 @@ async function main() {
     assert.equal(await dest.locator('#sectorControls input').inputValue(),'0.25')
     assert.equal(await dest.locator('#sectorOpacity').inputValue(),'80')
     assert.match(await dest.locator('#sectorFileButton').innerText(),/azul.png/)
+    await dest.getByRole('button',{name:'Toda la visual',exact:true}).click()
     await tab(dest,'signal')
     assert.match(await dest.locator('#visualName').innerText(),/entrada.png/)
     assert.equal(await dest.locator('#autoMixInput').getAttribute('aria-pressed'),'false')

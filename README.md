@@ -2,18 +2,20 @@
 
 Editor de live coding y sintetizador de video con Hydra. El JavaScript del sketch genera la imagen base. Los sectores opcionales componen sus efectos encima de esa salida. Podés empezar en blanco, editar una pieza existente o generar un nuevo grafo de señales a partir de una semilla.
 
-En una sesión nueva, Fosfeno abre y ejecuta *MULTIVERSE*, de e_e (@eerie_ear). Es una apertura observada en el editor oficial, que sortea un ejemplo de su catálogo en cada visita sin parámetros. El documento conserva el texto, los créditos y la licencia CC BY-NC-SA 4.0 del original. [Abrir el mismo sketch en Hydra](https://hydra.ojack.xyz/?sketch_id=eerie_ear_0) · [Comparación en navegador y límites](docs/paridad-hydra.md)
+Al entrar sin un enlace de sketch, Fosfeno genera una pieza con una semilla aleatoria. La semilla aparece en el nombre y en el código. Los borradores se conservan y los enlaces identificados recuperan su pieza. *MULTIVERSE*, de e_e (@eerie_ear), queda en la Biblioteca con el código y la atribución originales. [Abrir el mismo sketch en Hydra](https://hydra.ojack.xyz/?sketch_id=eerie_ear_0) · [Comparación en navegador y límites](docs/paridad-hydra.md)
 
 [Abrir el estudio](https://luzbel33.github.io/fosfeno/index.html?v=2) · [Abrir Glitch River de Flor de Fuego](https://luzbel33.github.io/fosfeno/index.html?sketch_id=flor_2) · [Ver el editor en movimiento](media/fosfeno-demo.mp4)
 
 ## Tocar una visual
 
-En el teléfono la visual abre grande. Tocá **Código**, **Biblioteca**, **Señal** o **Sectores** en la barra inferior para abrir sus herramientas. Tocá la misma pestaña para plegarlas. En escritorio el editor queda al costado. Arrastrá la división con el dedo o el mouse para repartir el espacio. Con teclado, enfocá la división y usá las flechas.
+En pantallas amplias, **Sectores** aparece en la barra cuando el panel izquierdo está cerrado. Usá la **×** del panel para cerrarlo. **Código**, **Biblioteca**, **Imagen** y **Audio** abren su herramienta a la derecha. En el teléfono en vertical, la herramienta se abre arriba del monitor. Usá **Cerrar panel** para recuperar la vista grande.
+
+En **Sectores**, tocá **Nuevo sector**, elegí una forma y arrastrá sobre la visual. Las herramientas se abren debajo del sector que dibujaste. Tocá **Edición en vivo** para pasar a **Edición manual**. **Enviar a salida** aparece cuando hay cambios preparados. **Grabar loop** está junto a **Proyectar** en pantallas amplias y al inicio de los controles de edición en pantallas chicas. Arrastrá la división para repartir el espacio. Con teclado, enfocá la división y usá las flechas.
 
 **Ampliar** te deja mirar la composición en la misma ventana. **Volver a editar** o **Esc** recupera la pestaña y el tamaño que estabas usando. **Proyectar** abre una ventana aparte con la imagen limpia.
 
 1. En **Código**, cambiá un valor. **Edición en vivo** empieza encendida y recuerda tu elección. La salida se actualiza tras una pausa breve al escribir. Tocá un literal numérico para afinarlo con el deslizador.
-2. Elegí **Espejo X**, **Modular** u otro operador. Se inserta en la cadena que contiene el cursor o en la cadena de salida principal. **Efectos → Quitar** muestra los operadores editables, sus líneas y las capas de biblioteca. Cada mezcla con una proporción numérica tiene un deslizador. El **?** de Efectos explica cada botón.
+2. Elegí un sector o **Toda la visual** y tocá **+ Efecto** en su fila. Buscá un operador o mezclá una pieza de la Biblioteca. La cadena muestra qué está en salida, pausado o pendiente. Pausar conserva el ajuste. Las flechas cambian el orden y **×** quita el efecto.
 3. **Explorar** escribe un nuevo sketch. En **Biblioteca** podés elegir simetría, ingresar una semilla y volver a generar el mismo grafo. El generador combina interferencias, ecos entre fotogramas, inversión de coordenadas, tramas y campos de órbitas. Cada operación queda editable.
 4. Para armar una pieza desde cero, elegí **Biblioteca → En blanco**. Escribí `osc(14, 0.08, 1.4).kaleid(5).out(o0)`; en edición en vivo se proyecta al escribir.
 5. **Autopiloto** escribe y ejecuta una semilla nueva en cada intervalo. Tocar el código devuelve el control al operador. El intervalo se elige junto al interruptor.
@@ -22,7 +24,7 @@ En el teléfono la visual abre grande. Tocá **Código**, **Biblioteca**, **Señ
 
 El **?** junto al nombre del sketch abre **Comentarios por línea**. Podés mostrarlos mientras editás y copiar el código con una guía numerada para consultarla o llevarla a una IA. Las anotaciones son locales. El texto del editor y la atribución del original se conservan.
 
-En **Efectos → Agregar → Todos los operadores Hydra**, elegí una fuente, una transformación o una mezcla del motor. **Ajustar** muestra cada llamada con su línea, los argumentos del código y los valores predeterminados que aporta Hydra. Podés escribir un número, una secuencia o una expresión como `() => time * 0.2`. **Guardar este operador** guarda una copia con sus argumentos. Para los operadores que dependen de variables propias del sketch, guardá la composición completa.
+La búsqueda en **+ Efecto** incluye fuentes, transformaciones y mezclas de Hydra. En **Código**, **Editar operadores del código** muestra las llamadas del sketch con su línea, argumentos y valores predeterminados. Podés escribir un número, una secuencia o una expresión como `() => time * 0.2`. **Guardar este operador** guarda una copia con sus argumentos. Para los operadores que dependen de variables propias del sketch, guardá la composición completa.
 
 **Ctrl + Enter** ejecuta la línea del cursor. **Alt + Enter** ejecuta el bloque entre líneas vacías y **Ctrl + Shift + Enter** ejecuta todo. El botón **Bloque** también admite una selección. La ejecución al escribir se activa con **Edición en vivo**. Podés comentar con **Ctrl + /**, formatear con **Ctrl + Shift + F** y descargar el fotograma y el código con **Ctrl + Shift + S**. Fosfeno también admite ⌘ como modificador. Las variables y funciones declaradas al nivel superior pueden reutilizarse desde otro bloque.
 
@@ -41,11 +43,11 @@ src(o1)
 render(o0)
 ```
 
-Probá seleccionar y ejecutar `pliegues = 9`. Podés usar las cuatro entradas `s0…s3`, las cuatro salidas `o0…o3`, secuencias, callbacks, `update`, `speed`, `bpm`, `setFunction` y código asíncrono. El selector **Principal · o0** permite inspeccionar un buffer o verlos juntos en mosaico. **Ver mezcla** muestra las cadenas compiladas, las entradas y los sectores en salida. `render()` muestra las cuatro salidas. Si falla la compilación de una cadena, el editor recupera los programas de salida anteriores.
+Probá seleccionar y ejecutar `pliegues = 9`. Podés usar las cuatro entradas `s0…s3`, las cuatro salidas `o0…o3`, secuencias, callbacks, `update`, `speed`, `bpm`, `setFunction` y código asíncrono. El selector **Principal · o0** permite inspeccionar una salida o verlas juntas en mosaico. `render()` muestra las cuatro salidas. Si falla la compilación de una cadena, el editor recupera los programas de salida anteriores.
 
 ### Biblioteca e intercambio
 
-- **Mezclar** inserta una capa editable en el código actual. Las cadenas simples se combinan directamente. Las piezas con feedback necesitan salidas Hydra libres; el panel indica si faltan. Los sketches que toman el control de los dispositivos se pueden abrir por separado.
+- **Mezclar** alterna un sketch en toda la visual o en el sector seleccionado. El control debajo de la pieza regula su intensidad. Cada mezcla tiene sus propios buffers Hydra, incluido el feedback. Los sectores leen las entradas s0 a s3. Los sketches que abren dispositivos o cargan recursos de manera asíncrona se ejecutan desde el código principal.
 - **Puntos de partida** incluye el `flor_2` original, patches multibuffer, osciladores, geometrías escritas con GLSL y tratamientos para fuentes en vivo.
 - **Comunidad Hydra → Abrir catálogo** lee los ejemplos del repositorio oficial. Sin conexión usa la copia guardada o los 58 ejemplos incluidos. Buscá por nombre, autor o identificador. Un enlace con `?sketch_id=` puede abrir cualquiera de los ejemplos incluidos. Los enlaces con `?code=` cargan el código en el editor y esperan a que pulses **Ejecutar**.
 - **Guardar** conserva una copia local. También podés importar o descargar JavaScript. El botón **Abrir en Hydra** lleva el código actual al editor oficial en un enlace.
@@ -53,7 +55,7 @@ Probá seleccionar y ejecutar `pliegues = 9`. Podés usar las cuatro entradas `s
 
 ## Señal y proyección
 
-En **Señal → Imagen**, **Webcam** pide acceso a la cámara predeterminada. Abrí la cabina por HTTPS o localhost y permití el acceso en el navegador. Podés elegir cualquier cámara que el navegador identifique en el panel. En algunos equipos los nombres aparecen después de dar permiso. La vista previa confirma qué cámara llega a `s0`. **Quitar** libera la entrada.
+En **Imagen**, **Webcam** pide acceso a la cámara predeterminada. Abrí la cabina por HTTPS o localhost y permití el acceso en el navegador. Podés elegir cualquier cámara que el navegador identifique en el panel. En algunos equipos los nombres aparecen después de dar permiso. La vista previa confirma qué cámara llega a `s0`. **Desconectar entrada** libera la cámara.
 
 **Mezclar al conectar** inserta la entrada de cámara, ventana o archivo en el sketch. **Mezclar con el sketch** puede volver a agregarla y **Ver sólo la fuente** abre una cadena Hydra editable dedicada a la entrada. Para usar la cámara sólo dentro de un sector, conectala allí o desactivá la mezcla automática en el panel. **Pinceladas** reconstruye la entrada con trazos orientados según los bordes. También podés usar una ventana, foto o video. Desde código, `await s1.initCam(0)` conecta la primera cámara a `s1` y `s1.clear()` la libera. Los índices empiezan en cero y las cuatro entradas admiten cámaras.
 
@@ -61,15 +63,23 @@ En **Audio** podés activar el micrófono, importar pistas o grabar una toma. Ca
 
 Para usar p5 como entrada, creá `p = new P5()`, dibujá en `p`, conectá `s1.init({src: p.canvas})` y ejecutá `src(s1).out()`. Para recibir video de otra instancia de Hydra, usá `s0.initStream("nombre")`. En la emisora, `pb.setName("nombre")` habilita compartir el canvas por WebRTC. `pb.list()` abre el descubrimiento de pares y `pb.disconnect()` cierra la conexión de Fosfeno. Para una sala propia, ejecutá primero `pb.connect(urlDelServidor, nombreDeSala)` en las dos instancias.
 
-**Proyectar** abre una segunda ventana que contiene únicamente el video de la composición. Movela al proyector y hacé doble clic para ponerla en pantalla completa. La cabina conserva el editor y las guías. En una sola pantalla usá **Señal → Salida → Pantalla completa**.
+**Proyectar** abre una segunda ventana que contiene únicamente el video de la composición. Movela al proyector y hacé doble clic para ponerla en pantalla completa. La cabina conserva el editor y las guías. En una sola pantalla usá **Imagen → Salida → Pantalla completa**.
+
+**Desconectar cámara** libera la entrada. En **Sectores**, **Quitar del sector** vuelve al sketch y **Desconectar entrada s0** apaga la fuente compartida. Las pinceladas tienen grosor, velocidad y definición final. En el sentido normal, al 100 % llegan a la imagen original. **A la inversa** parte de la imagen original y la simplifica. Con la definición al 0 % termina en dos tonos.
 
 ### Sectores
 
-En **Sectores → Dibujar sector**, elegí una forma y arrastrá sobre la visual. **Libre** sigue el recorrido del puntero. Tocá un sector en la lista o sobre la imagen para seleccionarlo; **Redibujar** cambia sus límites. El último de la lista se superpone a los anteriores.
+**Libre** sigue el recorrido del puntero. Seleccioná un sector en la lista o sobre la imagen. **Código** en la fila edita ese sector. **Biblioteca** e **Imagen** trabajan sobre el sector seleccionado. **Toda la visual** apunta a la imagen base. Los sectores de adelante aparecen arriba y el ojo alterna su visibilidad.
 
-Cada sector puede usar el sketch, la señal compartida s0 o su propia foto o video. **Pinceladas** reconstruye esa imagen dentro de la máscara. **Agregar** apila efectos con parámetros propios y **Quitar** retira uno de ellos. Si apagás **Edición en vivo**, las guías muestran el dibujo preparado y **Aplicar sectores al proyector** confirma esa parte de la mezcla.
+Arrastrá desde el interior de un sector para moverlo. **Deformar** edita sus puntos. **Estilo** permite activar un relleno y un borde por separado, elegir sus colores o escribirlos en hexadecimal y ajustar el grosor del borde.
+
+Con **+ Capa**, agregá una imagen, código o una cadena de efectos independiente dentro del mismo contorno. Elegí la capa para ajustar su opacidad, moverla en la pila o quitarla. El relleno se dibuja debajo de las capas y el borde por encima. Bajar la opacidad de una capa deja ver las que tiene debajo.
+
+**Imagen** abre las fuentes del sector, incluido el sketch, s0, sus fotos o sus videos. **+ Efecto** abre la paleta y la búsqueda de operadores Hydra. En **Edición manual**, las guías muestran el dibujo preparado y **Enviar a salida** muestra los cambios pendientes desde cualquier herramienta.
 
 **Deformar** muestra los puntos del contorno. Arrastrá un punto para cambiarlo, un borde para agregar un vértice o el interior para mover toda la forma. La **Opacidad** y los parámetros de los efectos pertenecen al sector seleccionado. **Guardar sectores** actualiza la copia local de los sectores y sus archivos. **Recuperar guardados** vuelve a cargarla.
+
+**Grabar loop** captura hasta 30 segundos de la salida o del sector seleccionado con sus efectos. **Guardar loop** termina antes. Tocá **Ver loop** en la confirmación para ir a esa grabación o **Mis loops** junto al botón de grabar para abrir la lista. **Usar** carga el video en el destino indicado arriba de la lista, sea toda la visual o la capa seleccionada en Sectores. Las grabaciones quedan en el mismo navegador y dirección de Fosfeno. **Descargar** guarda una copia que podés llevar a otra cabina con **Importar video**.
 
 ### Llevar una creación a otra cabina
 

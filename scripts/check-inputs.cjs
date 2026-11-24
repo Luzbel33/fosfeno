@@ -1,3 +1,4 @@
+const { openStudio } = require('./studio-nav.cjs')
 // Start Fosfeno on loopback first. Pass --physical to also use a real camera.
 const assert = require('node:assert/strict')
 const { chromium } = require('playwright')
@@ -46,7 +47,7 @@ async function checkCamera(real) {
     await page.waitForFunction(() => window.cm && window.hydraSynth && window.a)
     await page.evaluate(() => cm.setValue('solid(1,0,0).out(o0)'))
     await page.waitForFunction(() => document.querySelector('#codeStatus').textContent.includes('Sketch ejecutado'))
-    await page.locator('[data-view="signal"]').click()
+    await openStudio(page,'signal')
     assert.deepEqual(await page.evaluate(() => cameraRequests), [])
     if (!real) {
       await page.locator('[data-tab="audio"]').click()
@@ -120,7 +121,7 @@ async function checkCamera(real) {
       await choices.nth(1).click()
       await page.waitForFunction(() => firstTrack.readyState === 'ended' && s0.src.srcObject.getVideoTracks()[0].getSettings().deviceId !== firstDevice)
     }
-    await page.locator('[data-view="code"]').click()
+    await openStudio(page,'code')
     await page.evaluate(() => {
       window.inputVerificationFrames = 0
       cm.setValue('setResolution(96,64)\nsrc(s0).out(o0)\nrender(o0)\nafterUpdate = () => window.inputVerificationFrames++')
@@ -144,7 +145,7 @@ async function checkCamera(real) {
     assert.ok(reading.activeVideo)
     assert.equal(reading.audioTracks, 0)
     if (!real) assert.ok(reading.nonblack)
-    await page.locator('[data-view="signal"]').click()
+    await openStudio(page,'signal')
     await page.locator('#clearVisual').click()
     await page.waitForFunction(() => lastTrack.readyState === 'ended' && !s0.src)
     assert.equal(await page.locator('#sourcePreview video').count(), 0)

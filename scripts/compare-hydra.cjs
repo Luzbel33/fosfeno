@@ -1,3 +1,4 @@
+const { openStudio } = require('./studio-nav.cjs')
 // Run with a local Fosfeno server and Playwright/Chromium already installed.
 const assert = require('node:assert/strict')
 const crypto = require('node:crypto')
@@ -8,7 +9,9 @@ const { execFileSync } = require('node:child_process')
 const { chromium } = require('playwright')
 
 const official = 'https://hydra.ojack.xyz/?sketch_id=eerie_ear_0'
-const local = process.argv[2] || 'http://127.0.0.1:8736/'
+const target = new URL(process.argv[2] || 'http://127.0.0.1:8736/')
+target.searchParams.set('sketch_id','eerie_ear_0')
+const local = target.href
 const initialHash = 'dc19d3a78597e4611844e73f6775700ee004031c504d8821a02871e46a43076d'
 
 function cameraFixture(file) {
@@ -48,7 +51,7 @@ async function visit(browser, url) {
   // Compare the same explicit line/block/all actions as the official manual editor.
   const live = page.locator('#liveEdit[aria-pressed=true]')
   if (await live.count()) {
-    if (!await live.isVisible()) await page.locator('[data-view=code]').click()
+    if (!await page.locator('#run').isVisible()) await openStudio(page,'code')
     await live.click()
   }
   await page.mouse.move(47, 28)

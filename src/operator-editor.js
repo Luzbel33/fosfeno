@@ -3,31 +3,42 @@ function hydraDefault(input) {
   return input.type === 'sampler2D' ? 's0' : 'osc()'
 }
 class OperatorEditor {
-  constructor(editor,transforms,insert,save,notify) {
-    Object.assign(this,{editor,transforms,insert,save,notify})
+  constructor(editor,transforms,insert,save,remove,notify) {
+    Object.assign(this,{editor,transforms,insert,save,remove,notify})
     this.root = document.getElementById('operatorInspector')
-    this.catalog = document.getElementById('hydraCatalog')
-    this.catalog.ontoggle = () => { if (this.catalog.open) this.palette() }
+    this.search = document.getElementById('effectSearch')
+    this.search.oninput = () => this.palette()
     editor.on('changes',()=>{ if (!this.root.hidden) this.draw() })
   }
   palette() {
     const root = document.getElementById('hydraChoices')
     root.replaceChildren()
     const groups = {src:'Fuentes',coord:'Geometría',color:'Color',combine:'Mezcla',combineCoord:'Deformación'}
-    const transforms = this.transforms()
-    for (const [type,title] of Object.entries(groups)) {
-      const list = document.createElement('details'), head = document.createElement('summary'), cells = document.createElement('div')
-      head.textContent=title; cells.className='shape-picker'; list.append(head,cells)
-      for (const [name,t] of Object.entries(transforms).filter(([,t])=>t.type===type)) {
-        const b=document.createElement('button')
-        b.textContent=name
-        b.onclick=()=>{
-          const expression=name+'('+t.inputs.map(hydraDefault).join(', ')+')'
-          this.insert(expression,type==='src')
-        }
-        cells.append(b)
+    const query = this.search.value.trim().toLowerCase()
+    const quick = document.getElementById('sectorFx')
+    let matchingQuick=0
+    for (const button of quick.children) {
+      button.hidden=!!query && !button.textContent.toLowerCase().includes(query)
+      if (!button.hidden) matchingQuick++
+    }
+    quick.hidden=!matchingQuick
+    root.hidden = !query
+    if (!query) return
+    for (const [name,transform] of Object.entries(this.transforms())) {
+      const group=groups[transform.type]
+      if (!group || ![name,group].some(text=>text.toLowerCase().includes(query))) continue
+      const button=document.createElement('button'), type=document.createElement('small')
+      type.textContent=group
+      button.append(name,type)
+      button.onclick=()=>{
+        const expression=name+'('+transform.inputs.map(hydraDefault).join(', ')+')'
+        this.insert(expression,transform.type==='src')
       }
-      root.append(list)
+      root.append(button)
+    }
+    if (!root.childElementCount) {
+      root.hidden=!!matchingQuick
+      if (!matchingQuick) root.textContent='No encontramos un operador con ese nombre.'
     }
   }
   draw() {
@@ -45,7 +56,7 @@ class OperatorEditor {
     const index=Math.max(0,Math.min(elements.length-1,this.index || 0))
     const menu=document.createElement('details'), heading=document.createElement('summary')
     const chosen=elements[index], line=el=>cm.posFromIndex(el.key.start).line+1
-    heading.textContent=chosen.name+' · línea '+line(chosen)+' ▾';menu.append(heading)
+    heading.textContent=chosen.name+' · línea '+line(chosen);menu.append(heading)
     const list=document.createElement('div');list.className='shape-picker'
     elements.forEach((el,i)=>{
       const b=document.createElement('button')
@@ -79,6 +90,15 @@ class OperatorEditor {
       }
       field.onkeydown=e=>{if (e.key==='Enter'){e.preventDefault();field.blur()}}
       row.append(field);root.append(row)
+      if (name==='blend' && i===1 && arg && typeof arg.value==='number' && arg.value>=0 && arg.value<=1) {
+        const slider=document.createElement('input')
+        slider.type='range'; slider.min=0; slider.max=100; slider.value=arg.value*100
+        slider.setAttribute('aria-label','Intensidad de mezcla')
+        paintRange(slider)
+        slider.oninput=()=>{ paintRange(slider); field.value=String(Number(slider.value)/100) }
+        slider.onchange=field.onchange
+        root.append(slider)
+      }
     })
     if (effect) {
       const b=document.createElement('button');b.textContent='Guardar este operador'
@@ -106,7 +126,12 @@ class OperatorEditor {
             code:fragment,definitions,origin,regions:[]})
         } catch(err) { this.notify(err.message) }
       }
-      root.append(b)
+      const commands=document.createElement('div'), remove=document.createElement('button')
+      commands.className='segments'
+      remove.textContent='Quitar operador'
+      remove.onclick=()=>this.remove(effect)
+      commands.append(b,remove)
+      root.append(commands)
     }
   }
 }

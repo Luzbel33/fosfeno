@@ -1,3 +1,4 @@
+const { openStudio } = require('./studio-nav.cjs')
 const assert = require('node:assert/strict')
 const path = require('node:path')
 const { chromium } = require('playwright')
@@ -9,13 +10,25 @@ async function main() {
     const errors = []
     page.on('pageerror', e => errors.push(e.message))
     const id = n => page.locator('#'+n)
-    const tab = n => page.locator('[data-view="'+n+'"]').click()
+    const tab = async name => {
+      if (name==='code') {
+        if (!await id('layerDesk').isVisible()) await openStudio(page,'sectors')
+        await id('layerOverview').getByRole('button',{name:'Toda la visual',exact:true}).click()
+      }
+      await openStudio(page,name)
+    }
     const waitPixel = async (x,y,rgb) => page.waitForFunction(({x,y,rgb}) => {
       hydraSynth.tick(32)
       const canvas = hydraSynth.canvas
       const p = hydraSynth.regl.read({x:Math.floor(x*canvas.width),y:Math.floor((1-y)*canvas.height),width:1,height:1})
       return rgb.every((v,i) => Math.abs(p[i]-v) <= 2)
     },{x,y,rgb}, {timeout:8000})
+    async function sectorMedia() {
+      if (!await id('sectorMedia').isVisible()) await id('sectorMediaToggle').click()
+    }
+    async function layerOptions() {
+      if (!await id('sectorDelete').isVisible()) await page.locator('.layer-actions > summary').click()
+    }
     async function draw(shape, points) {
       await id('newSector').click()
       await id('sectorShapes').getByRole('button',{name:shape,exact:true}).click()
@@ -28,8 +41,8 @@ async function main() {
     }
     const red = [255,0,0], cyan = [0,255,255], blue = [0,0,255]
     await page.goto(process.argv[2] || 'http://127.0.0.1:8736/')
-    await page.waitForFunction(() => window.cm?.getValue().includes('MULTIVERSE') && window.hydraSynth)
-    assert.equal(await page.locator('#ops small').count(),0)
+    await page.waitForFunction(() => window.cm?.getValue().startsWith('// Semilla ') && window.hydraSynth)
+    assert.equal(await page.locator('#sectorFx small').count(),0)
     await page.locator('[data-help="efectos"]').click()
     assert.equal(await page.locator('#helpDialog[open] dt').count(),12)
     assert.ok(await id('helpContent').getByText('Refleja de izquierda a derecha').isVisible())
@@ -47,25 +60,23 @@ async function main() {
     assert.equal(await id('liveEdit').getAttribute('aria-pressed'),'true')
     await page.evaluate(() => cm.setValue('solid(1,0,0).out(o0)'))
     await waitPixel(.4,.4,red)
-    await id('ops').getByRole('button',{name:/Espejo X/}).click()
-    await id('removeMode').click()
-    await id('activeEffects').getByRole('button',{name:/Quitar Espejo X/}).click()
+    await id('addSectorEffect').click()
+    await id('sectorFx').getByRole('button',{name:/Espejo X/}).click()
+    await id('sectorFx').getByRole('button',{name:/Espejo X/}).click()
     assert.equal(await page.evaluate(()=>cm.getValue()),'solid(1,0,0).out(o0)')
     await tab('library')
     await id('sketchList').getByRole('button',{name:'Mezclar Nácar en fuga',exact:true}).click()
-    await page.waitForFunction(() => cm.getValue().includes('capaBiblioteca') && document.querySelector('#codeStatus').textContent.includes('Sketch ejecutado'))
-    await id('mixInfo').click()
-    await page.waitForFunction(() => document.querySelector('#mixDetail').textContent.includes('Biblioteca · Nácar en fuga'))
-    await id('mixInfo').click()
+    await tab('sectors')
+    assert.match(await id('sectorControls').innerText(),/Nácar en fuga[\s\S]*En salida/)
+    await id('sectorControls').getByRole('button',{name:'Quitar Nácar en fuga de toda la visual'}).click()
     await tab('code')
-    await id('activeEffects').getByRole('button',{name:/Quitar Nácar en fuga/}).click()
     await waitPixel(.4,.4,red)
     assert.equal(await page.evaluate(()=>cm.getValue()),'solid(1,0,0).out(o0)')
 
     await tab('sectors')
     await draw('Rectángulo',[[.15,.15],[.85,.85]])
     const invert = async () => {
-      await id('addSectorEffect').click()
+      if (!await id('sectorFx').isVisible()) await id('addSectorEffect').click()
       await id('sectorFx').getByRole('button',{name:'Invertir'}).click()
     }
     await invert()
@@ -78,6 +89,7 @@ async function main() {
       return c.toDataURL().split(',')[1]
     })
     const picker = page.waitForEvent('filechooser')
+    await sectorMedia()
     await id('sectorFileButton').click()
     await (await picker).setFiles({name:'azul.png',mimeType:'image/png',buffer:Buffer.from(image,'base64')})
     await waitPixel(.49,.49,blue)
@@ -90,16 +102,19 @@ async function main() {
       return rgba.some((v,i)=>i%4===2 && v>100 && rgba[i-2]<10)
     })
     await id('sectorPaint').click()
+    await page.locator('#sectorStorage > summary').click()
     await id('saveSectors').click()
     await page.waitForFunction(()=>document.querySelector('#sectorStatus').textContent.includes('guardados'))
+    await layerOptions()
     await id('sectorDelete').click()
     await waitPixel(.49,.49,cyan)
     await id('loadSectors').click()
     await waitPixel(.49,.49,blue)
-    await id('sectorVisible').click()
+    await id('layerOverview').getByRole('button',{name:/Ocultar Círculo/}).click()
     await waitPixel(.49,.49,cyan)
-    await id('sectorVisible').click()
+    await id('layerOverview').getByRole('button',{name:/Mostrar Círculo/}).click()
     const video = page.waitForEvent('filechooser')
+    await sectorMedia()
     await id('sectorFileButton').click()
     await (await video).setFiles(path.join(__dirname,'../media/fosfeno-demo.mp4'))
     await page.waitForFunction(()=>document.querySelector('#sectorFileButton').textContent.includes('mp4'))
@@ -113,18 +128,20 @@ async function main() {
     await id('sectorDelete').click()
     for (const shape of ['Cuadrado','Rombo','Triángulo','Libre']) {
       await draw(shape,[[.3,.25],[.65,.6],[.4,.7], [.28,.55]])
-      assert.ok((await id('sectorTitle').textContent()).includes(shape))
+      assert.ok((await id('effectTarget').textContent()).includes(shape))
       await id('sectorDelete').click()
     }
     await tab('code')
     await id('liveEdit').click()
     await tab('sectors')
+    await id('layerOverview').getByRole('button',{name:'Rectángulo 1',exact:true}).click()
     await id('sectorDelete').click()
     await waitPixel(.4,.4,cyan)
     await id('applySectors').click()
     await waitPixel(.4,.4,red)
     await draw('Rectángulo',[[.2,.2],[.7,.7]])
     await page.context().grantPermissions(['camera'])
+    await sectorMedia()
     await page.locator('[data-sector-src="s0"]').click()
     await id('sectorCamera').click()
     await page.waitForFunction(()=>document.querySelector('#sectorStatus').textContent.includes('Webcam conectada'))

@@ -1,32 +1,39 @@
+function paintRange(input) {
+  const span = Number(input.max) - Number(input.min)
+  const amount = span ? 100 * (Number(input.value)-Number(input.min))/span : 0
+  input.style.setProperty('--amount',amount+'%')
+}
+
 class StudioLayout {
   constructor(editor) {
     this.editor = editor
+    this.wide = matchMedia('(min-width:1180px) and (min-height:610px)')
     this.compact = matchMedia('(max-width:700px), (max-width:980px) and (max-height:560px)')
+    this.recordBar = matchMedia('(min-width:1280px)')
     this.bench = document.querySelector('.workbench')
     this.studio = document.querySelector('.studio')
+    this.preview = document.getElementById('previewArea')
+    this.inspector = document.getElementById('inspectorDesk')
+    this.codeHeading = document.getElementById('codeHeading')
     this.divider = document.getElementById('splitter')
     this.focusButton = document.getElementById('focusPreview')
     // The divider owns this gesture. A native fling can otherwise consume the next tap.
     this.divider.addEventListener('touchstart', event => event.preventDefault(), {passive:false})
     this.divider.onpointerdown = e => {
       if (e.button !== 0) return
-      this.drag = {id:e.pointerId, vertical:this.verticalSplit(), pendingOpen:!this.opened && this.sideDrawer(), startY:e.clientY}
+      this.drag = {id:e.pointerId, vertical:this.verticalSplit()}
       this.divider.setPointerCapture(e.pointerId)
     }
     this.divider.onpointermove = e => {
       if (e.pointerId !== this.drag?.id) return
-      if (this.drag.pendingOpen) {
-        if (this.drag.startY - e.clientY > 12) this.open(true)
-        return
-      }
-      const bounds = this.bench.getBoundingClientRect()
+      const bounds = this.splitBounds()
       const fraction = this.drag.vertical
-        ? (e.clientX-bounds.left)/bounds.width : (e.clientY-bounds.top)/bounds.height
+        ? (e.clientX-bounds.left)/bounds.width : (bounds.bottom-e.clientY)/bounds.height
       this.setPreviewShare(fraction)
     }
     this.divider.onlostpointercapture = () => { this.drag = null }
     this.divider.onkeydown = e => {
-      const delta = {ArrowLeft:-.05,ArrowUp:-.05,ArrowRight:.05,ArrowDown:.05}[e.key]
+      const delta = {ArrowLeft:-.05,ArrowUp:.05,ArrowRight:.05,ArrowDown:-.05}[e.key]
       if (delta === undefined && !['Home','End','Enter'].includes(e.key)) return
       e.preventDefault()
       if (e.key === 'Enter' && this.compact.matches) this.open(!this.opened)
@@ -37,15 +44,20 @@ class StudioLayout {
       if (e.key === 'Escape' && !document.getElementById('helpDialog').open &&
           document.body.classList.contains('preview-focus')) this.focus(false)
     })
-    this.compact.addEventListener('change', () => this.open(false))
-    new ResizeObserver(() => {
+    this.compact.addEventListener('change', () => {
+      this.open(false)
+      this.arrangeChrome()
+    })
+    this.recordBar.addEventListener('change',()=>this.arrangeChrome())
+    const resize = new ResizeObserver(() => {
       this.divider.setAttribute('aria-orientation', this.verticalSplit() ? 'vertical' : 'horizontal')
-      if (!this.studio.getBoundingClientRect().width) return
       const percent = Math.round(this.share()*100)
       this.divider.setAttribute('aria-valuenow', percent)
       this.divider.setAttribute('aria-valuetext', percent + '% para la visual')
-      this.editor.refresh()
-    }).observe(this.studio)
+      if (this.wide.matches || this.studio.getBoundingClientRect().width) this.editor.refresh()
+    })
+    resize.observe(this.studio)
+    resize.observe(this.inspector)
     const viewport = () => {
       const v = window.visualViewport
       if (v && v.scale === 1) document.documentElement.style.setProperty('--app-height',v.height+'px')
@@ -62,38 +74,90 @@ class StudioLayout {
       this.moreHelp()
     }
     this.open(false)
+    this.arrangeChrome()
+    this.showPanes('sectors')
+  }
+  activeView(view) { return this.wide.matches && view === 'sectors' ? 'code' : view }
+  showPanes(view) {
+    const wide = this.wide.matches
+    const active = this.activeView(view)
+    document.body.classList.toggle('three-pane',wide)
+    for (const pane of document.querySelectorAll('[data-viewpane]')) {
+      const type = pane.dataset.viewpane
+      const parent = wide && type !== 'sectors' ? this.inspector : this.studio
+      if (pane.parentElement !== parent) parent.append(pane)
+      pane.hidden = type !== active && !(wide && type === 'sectors')
+    }
+    this.inspector.hidden = !wide
+    this.codeHeading.hidden = active !== 'code'
+  }
+  arrangeChrome() {
+    const $ = id => document.getElementById(id)
+    const editing = !document.body.classList.contains('preview-focus')
+    const place = (id,parent) => {
+      const element=$(id)
+      if (element.parentElement!==parent) parent.append(element)
+    }
+    place('previewActions',editing ? $('previewDock') : document.querySelector('.output-head'))
+    place('outputChoices',editing ? $('previewDock') : $('previewArea'))
+    place('loopActions',$(this.recordBar.matches ? 'recordTop' : 'recordBottom'))
   }
   get opened() { return document.body.classList.contains('tools-open') }
+  get layersVisible() { return !document.body.classList.contains('layers-collapsed') }
+  setLayersVisible(on) {
+    document.body.classList.toggle('layers-collapsed',!on)
+    this.open(this.opened)
+  }
   sideDrawer() {
     return this.compact.matches && matchMedia('(min-width:551px) and (orientation:landscape)').matches
   }
   verticalSplit() {
     return !this.compact.matches || (this.opened && this.sideDrawer())
   }
+  splitBounds() {
+    const bounds = this.bench.getBoundingClientRect()
+    if (!this.wide.matches) return bounds
+    const left = this.preview.getBoundingClientRect().left
+    return {left, width: bounds.right-left}
+  }
   share() {
     const dimension = this.verticalSplit() ? 'width' : 'height'
-    return document.getElementById('previewArea').getBoundingClientRect()[dimension] /
-      Math.max(1,this.bench.getBoundingClientRect()[dimension])
+    return this.preview.getBoundingClientRect()[dimension] / Math.max(1,this.splitBounds()[dimension])
   }
   setPreviewShare(fraction) {
     if (this.compact.matches && !this.verticalSplit() && fraction > .85) { this.open(false); return }
     this.open(true)
     const vertical = this.verticalSplit()
     const clamped = Math.max(vertical ? .3 : .2, Math.min(vertical ? .8 : .74,fraction))
-    this.bench.style.setProperty(vertical ? '--studio-width' : '--studio-height', (100*(1-clamped))+'%')
+    if (this.wide.matches) {
+      document.body.style.setProperty('--code-width',(this.splitBounds().width*(1-clamped))+'px')
+    } else {
+      document.body.style.setProperty(vertical ? '--studio-width' : '--studio-height',(100*(1-clamped))+'%')
+    }
   }
   open(on) {
     const showDrawer = this.compact.matches && on
     document.body.classList.toggle('tools-open',showDrawer)
-    for (const tab of document.querySelectorAll('.workspace-tabs button')) {
-      if (this.compact.matches) tab.setAttribute('aria-expanded', on && tab.classList.contains('active'))
-      else tab.removeAttribute('aria-expanded')
+    document.getElementById('closeTools').hidden = !showDrawer
+    for (const button of document.querySelectorAll('#studioNav button')) {
+      const active = button === this.activeTool && (!this.compact.matches || showDrawer)
+      if (active) button.setAttribute('aria-current','true')
+      else button.removeAttribute('aria-current')
+      if (this.compact.matches) {
+        button.setAttribute('aria-expanded',String(active))
+      } else if (this.wide.matches && button.id==='backToLayers') {
+        button.setAttribute('aria-expanded',String(this.layersVisible))
+      } else button.removeAttribute('aria-expanded')
     }
   }
   focus(on) {
     document.body.classList.toggle('preview-focus',on)
+    this.arrangeChrome()
     this.focusButton.setAttribute('aria-pressed',on)
+    this.focusButton.setAttribute('aria-label',on ? 'Volver a editar' : 'Ampliar visual')
+    this.focusButton.title=on ? 'Volver a editar' : 'Ampliar visual'
     this.focusButton.querySelector('span').textContent = on ? 'Volver a editar' : 'Ampliar'
+    this.focusButton.focus({preventScroll:true})
     if (!on) this.editor.refresh()
   }
   fitHelp() {
@@ -101,17 +165,24 @@ class StudioLayout {
     if (!dialog.open) return
     const viewport = window.visualViewport
     const height = viewport?.height || innerHeight, width = viewport?.width || innerWidth
-    const panel = this.studio.getBoundingClientRect()
-    const small = this.compact.matches || panel.width < 360 || (viewport?.scale || 1) > 1
+    const anchor = this.helpAnchor?.getBoundingClientRect()
+    const small = this.compact.matches || width < 480 || (viewport?.scale || 1) > 1
     const offsetX = viewport?.offsetLeft || 0, offsetY = viewport?.offsetTop || 0
-    const top = small ? offsetY + Math.min(74,height*.09) : Math.max(offsetY,panel.top)
-    const left = small ? offsetX + Math.max(0,(width-620)/2) : Math.max(offsetX,panel.left)
+    const gap = 10
+    const size = Math.min(width - (small ? 0 : 2*gap),small ? 620 : 405)
+    const left = offsetX + (small ? (width-size)/2 :
+      Math.max(gap,Math.min(width-size-gap,(anchor?.left ?? offsetX)-offsetX)))
+    const top = offsetY + (small ? Math.min(74,height*.09) : gap)
     dialog.classList.toggle('help-sheet',small)
     Object.assign(dialog.style, {left:left+'px',top:top+'px',
-      width:(small ? Math.min(width,620) : Math.min(panel.width,offsetX+width-left))+'px',
-      maxHeight:Math.max(0,offsetY+height-top)+'px'})
+      width:size+'px', maxHeight:Math.max(0,offsetY+height-top-(small ? 0 : gap))+'px'})
     this.moreHelp()
-    if (small) dialog.style.top = offsetY + height - dialog.getBoundingClientRect().height + 'px'
+    const actual = dialog.getBoundingClientRect().height
+    if (small) dialog.style.top = offsetY + height - actual + 'px'
+    else if (anchor) {
+      const below = anchor.bottom + gap, above = anchor.top - gap - actual
+      dialog.style.top = Math.max(top,below+actual <= offsetY+height-gap ? below : above)+'px'
+    }
   }
   moreHelp() {
     const c = document.getElementById('helpContent'), more = document.getElementById('moreHelp')

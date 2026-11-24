@@ -25,7 +25,12 @@
     plus: 'M12 4v16M4 12h16',
     play: 'm7 4 13 8-13 8z',
     pause: 'M8 5v14m8-14v14',
-    trash: 'M4 6h16M9 6V3h6v3M6 6l1 15h10l1-15'
+    trash: 'M4 6h16M9 6V3h6v3M6 6l1 15h10l1-15',
+    eye: 'M2 12s3.6-6 10-6 10 6 10 6-3.6 6-10 6S2 12 2 12z M12 9a3 3 0 1 0 0 6 3 3 0 0 0 0-6z',
+    eyeOff: 'M3 3l18 18M10.5 10.5a2.2 2.2 0 0 0 3 3M9.3 6.5a11.2 11.2 0 0 1 2.7-.4c6.4 0 10 5.9 10 5.9a14 14 0 0 1-2.5 2.9M6.2 8.3A16 16 0 0 0 2 12s3.6 6 10 6a12 12 0 0 0 3.5-.5',
+    layers: 'm3 8 9-5 9 5-9 5zM3 12l9 5 9-5M3 16l9 5 9-5',
+    code: 'm8 6-6 6 6 6m8-12 6 6-6 6m-3-14-2 16',
+    more: 'M4 12h1m6 0h1m6 0h1'
   }
   function icon(name) {
     return (
@@ -39,6 +44,9 @@
     interval: 60,
     painting: false,
     brush: 0.42,
+    brushSpeed: 1,
+    brushDetail: .65,
+    brushInverse: false,
     bpm: 30,
     internalPulse: false,
     sensitivity: 1,
@@ -88,13 +96,25 @@
       }
     )
   )
-  function notify(message) {
+  function dismissToast() {
     const el = $('toast')
-
+    el.classList.remove('show')
+    el.replaceChildren()
+  }
+  function notify(message, action) {
+    const el = $('toast')
+    clearTimeout(toastTimer)
     el.textContent = message
     el.classList.add('show')
-    clearTimeout(toastTimer)
-    toastTimer = setTimeout(() => el.classList.remove('show'), 3500)
+    if (action) {
+      const open=document.createElement('button'), close=document.createElement('button')
+      open.textContent=action.label
+      open.onclick=()=>{ dismissToast(); action.run() }
+      close.innerHTML=icon('close')
+      close.setAttribute('aria-label','Cerrar aviso')
+      close.onclick=()=>{ dismissToast(); $('openLoops').focus() }
+      el.append(open,close)
+    } else toastTimer = setTimeout(dismissToast,3500)
   }
   function messageFor(err) {
     if (err?.name === 'NotAllowedError')
@@ -150,16 +170,50 @@
     live = stored('live-edit', true) === true,
     timer,
     fold = 'libre',
-    view = 'code'
+    view = 'sectors',
+    signalTab = 'input'
   let revision = 0,
     queue = Promise.resolve(),
     pendingFresh = false
-  $('liveEdit').setAttribute('aria-pressed', live)
+  updateLiveEdit()
+  let applying = false
+  let scopeId = null, scopeLayer = null
+  const layout = new StudioLayout(cm)
+  const libraryRows = new WeakMap()
   const sectors = new SectorDesk({
     live: () => live, input: () => inputs[0].current?.element || engine?.h.s0.src,
-    bass: () => state.bands[0], connect: () => openVisual('camera', undefined, false)
+    bass: () => state.bands[0], connect: () => openVisual('camera', undefined, false), disconnect: () => clearVisual(),
+    onUpdate: region => {
+      if (layout.wide.matches || view === 'sectors' || (scopeId && !region)) setLayerScope(region)
+      if (engine) {
+        refreshLayerOverview()
+        refreshApply()
+        if (view === 'library') {
+          for (const row of $('libraryPage').querySelectorAll('.library-row')) libraryRows.get(row)?.()
+        }
+      }
+    }
   })
-  const layout = new StudioLayout(cm)
+  function setLayerScope(region) {
+    const layer = region ? sectors.content(region) : null
+    const changed = scopeId !== (region?.id ?? null) || scopeLayer !== layer
+    scopeId = region?.id ?? null
+    scopeLayer = layer
+    const destination = sectorLabel(region) + (layer ? ' · '+sectorLayerLabel(layer) : '')
+    $('sectorTarget').textContent = 'Destino · '+destination
+    $('operationTarget').textContent = $('sectorTarget').textContent
+    $('sourceTarget').hidden = !region
+    $('sourceTarget').textContent = region ? 'Destino · '+destination : ''
+    $('primaryInputOptions').hidden = !!region
+    if (engine) refreshLayerOverview()
+    if (changed && engine && view === 'library') {
+      library()
+      if (!$('catalog').hidden) filterCommunity()
+    }
+  }
+  const sectorTarget = () => sectors.regions.find(region=>region.id===scopeId)
+  const layerTarget = () => sectors.content(sectorTarget())
+  $('sectorLibrary').onclick = () => { setLayerScope(sectors.selected()); changeView('library') }
   const guide = new CodeGuide(cm)
   $('copyGuide').onclick = async () => {
     try { await navigator.clipboard.writeText(guide.annotatedCopy()); notify('Código y guía copiados.'); $('helpDialog').close() }
@@ -192,12 +246,13 @@
     $('codeStatus').classList.toggle('error', error)
   }
   const guideTitles = {salidas:'Qué estás proyectando', autopiloto:'Autopiloto', edicion:'Edición en vivo',
-    efectos:'Guía de efectos', sectores:'Dibujar y mezclar sectores', biblioteca:'Abrir o mezclar un sketch', portatil:'Composiciones portátiles',
-    imagen:'Fuentes de imagen',audio:'Audio y pulso',calidad:'Resolución',codigo:'Leer el código'}
+    efectos:'Sectores y efectos', biblioteca:'Abrir o mezclar un sketch', portatil:'Composiciones portátiles',
+    imagen:'Fuentes de imagen',audio:'Audio y pulso',calidad:'Resolución',codigo:'Leer el código',loops:'Grabar y reutilizar loops'}
   all('[data-help]').forEach(b => {
     b.setAttribute('aria-haspopup','dialog')
     b.onclick = () => {
       const topic = b.dataset.help
+      layout.helpAnchor = b
       $('guideActions').hidden = topic !== 'codigo'
       $('helpTitle').textContent = guideTitles[topic]
       const body = $('helpContent')
@@ -229,62 +284,175 @@
     $('chooseOutput').setAttribute('aria-expanded', open)
   }
   $('chooseOutput').onclick = () => outputPicker($('outputChoices').hidden)
+  function codePending() {
+    const code=cm.getValue()
+    return !!code.trim() && code!==appliedText
+  }
+  function updateLiveEdit() {
+    const button=$('liveEdit')
+    button.setAttribute('aria-pressed',live)
+    button.querySelector('.live-label').textContent = live ? 'Edición en vivo' : 'Edición manual'
+    button.querySelector('.live-compact').textContent = live ? 'En vivo' : 'Manual'
+    button.title = live ? 'Pasar a edición manual' : 'Volver a editar en vivo'
+  }
+  function refreshApply() {
+    const button=$('applySectors')
+    button.hidden = live || !(applying || codePending() || sectors.dirty)
+    button.disabled = applying
+  }
   function refreshMix() {
     if (!engine) return
-    const output = engine.output
-    const activeSectors = sectors.applied.filter(s => s.visible).length
-    const head = 'Ver mezcla · ' + (output === 'all' ? 'o0–o3' : 'o' + output) +
-      (inputs[0].current ? ' · s0 conectada' : '') + (activeSectors ? ' · ' + activeSectors + (activeSectors === 1 ? ' sector' : ' sectores') : '')
-    if ($('mixInfo').textContent !== head) $('mixInfo').textContent = head
-    if ($('mixDetail').hidden) return
-    const parts = ['Proyección · ' + (output === 'all' ? 'cuatro salidas' : 'o' + output)]
-    parts.push(...Array.from(engine.graphs, ([i, graph]) => 'o' + i + ' · ' + graph).sort())
-    if (appliedText && appliedText.includes('function capaBiblioteca')) {
-      // This text came from a completed execution, independently of pending edits.
-      const names = [...appliedText.matchAll(/function capaBiblioteca\(\) \{\s*("(?:\\.|[^"\\])*");/g)]
-      if (names.length) parts.push('Biblioteca · ' + names.map(m => m[1].slice(1,-1)).join(' + '))
-    }
-    parts.push('Entrada · ' + $('visualName').textContent, 'Audio · ' +
-      [sound.micStream && 'micrófono', sound.visualNode && 'ventana', ...Array.from(sound.tracks.values())
-        .filter(t => t.audio && !t.audio.paused).map(t => t.name), !sound.active && state.internalPulse && 'pulso interno'].filter(Boolean).join(' + '))
-    if (parts.at(-1) === 'Audio · ') parts[parts.length - 1] += 'silencio'
-    if (appliedText !== cm.getValue()) parts.push('El documento tiene cambios pendientes o se ejecutó por bloques.')
-    for (const r of sectors.applied.filter(s => s.visible)) parts.push(r.shape + ' ' + r.id + ' · ' + (r.source === 'file' ? r.file?.current?.file?.name : r.source) + (r.paint ? ' · Pinceladas' : '') + ' · ' + (r.fx.map(f => f.name).join(' → ') || 'sin efectos'))
-    if (sectors.dirty) parts.push('Hay sectores preparados para aplicar.')
-    const text = parts.join('\n')
-    if ($('mixDetail').textContent !== text) $('mixDetail').textContent = text
+    refreshApply()
+    refreshLayerOverview()
   }
-  $('mixInfo').onclick = () => {
-    $('mixDetail').hidden = !$('mixDetail').hidden
-    $('mixInfo').setAttribute('aria-expanded', !$('mixDetail').hidden)
-    refreshMix()
+  function refreshLayerOverview() {
+    const root=$('layerOverview')
+    const detail=$('sectorDetail')
+    const layers=[sectors.principal,...[...sectors.regions].reverse()]
+    const rows=layers.map(layer=>{
+      const applied=sectors.applied.find(r=>r.id===layer.id)
+      const count=applied?.visible ? sectorLayers(applied).flatMap(layer=>layer.fx).filter(f=>f.enabled!==false).length : 0
+      const status=layer.id && !applied ? 'Pendiente' : applied?.visible===false ? 'Oculto' :
+        count ? count+(count===1?' efecto':' efectos') : ''
+      return {id:layer.id,name:sectorLabel(layer),visible:layer.visible,status}
+    })
+    const key=JSON.stringify([rows,scopeId])
+    if (root.dataset.state===key) return
+    root.dataset.state=key
+    const existing = new Map(Array.from(root.querySelectorAll(':scope > .layer-overview-row'), row => [row.dataset.sectorId,row]))
+    const ordered = []
+    const selectedId = scopeId ?? 0
+    detail.dataset.selection = selectedId
+    for (const row of rows) {
+      const line = existing.get(String(row.id)) || makeSectorRow(row.id)
+      const [select,visibility] = line.children
+      const [name,status] = select.children
+      const selected = row.id === selectedId
+      name.textContent = row.name
+      status.textContent = row.status
+      select.setAttribute('aria-label',row.name)
+      select.setAttribute('aria-pressed',selected)
+      if (visibility) {
+        const label=(row.visible?'Ocultar ':'Mostrar ')+row.name
+        visibility.setAttribute('aria-label',label)
+        visibility.title=label
+        if (visibility.dataset.visible!==String(row.visible)) {
+          visibility.dataset.visible=row.visible
+          visibility.innerHTML=icon(row.visible?'eye':'eyeOff')
+        }
+      }
+      ordered.push(line)
+      if (selected) ordered.push(detail)
+    }
+    // Keep the selected editor and its focused inputs mounted when a row's status changes.
+    let cursor = root.firstElementChild
+    for (const node of ordered) {
+      if (node===cursor) cursor = cursor.nextElementSibling
+      else root.insertBefore(node,cursor)
+    }
+    while (cursor) {
+      const next = cursor.nextElementSibling
+      cursor.remove()
+      cursor = next
+    }
+    detail.hidden = false
+  }
+  function makeSectorRow(id) {
+    const line=document.createElement('div'), select=document.createElement('button')
+    const name=document.createElement('strong'), status=document.createElement('span')
+    line.className='layer-overview-row'
+    line.dataset.sectorId=id
+    select.className='layer-select'
+    select.setAttribute('aria-controls','sectorDetail')
+    select.onclick=()=>{
+      sectors.id=id || null
+      if (sectors.mode || sectors.drag) sectors.note('')
+      sectors.mode=null
+      sectors.cancelDrag()
+      sectors.panel(null)
+      if (!layout.wide.matches) changeView('sectors')
+      sectors.refresh()
+      $('addSectorEffect').scrollIntoView({block:'nearest'})
+    }
+    status.className='layer-count'
+    select.append(name,status)
+    line.append(select)
+    if (id) {
+      const visibility=document.createElement('button')
+      visibility.className='layer-visibility'
+      visibility.onclick=()=>{
+        const layer=sectors.regions.find(region=>region.id===id)
+        if (layer) { layer.visible=!layer.visible; sectors.changed() }
+      }
+      line.append(visibility)
+    }
+    return line
   }
   function changeView(next, openTools = true) {
-    view = next
-    all('[data-viewpane]').forEach((el) => (el.hidden = el.dataset.viewpane !== next))
-    sectors.show(next === 'sectors')
-    selectButtons('[data-view]', 'view', next)
+    view=next
+    layout.showPanes(next)
+    if (!layout.wide.matches && next!=='sectors') sectors.panel(null)
+    sectors.show(layout.wide.matches ? layout.layersVisible : next==='sectors')
+    if (next==='sectors') setLayerScope(sectors.selected())
+    layout.activeTool = next==='signal' && signalTab==='audio' ? $('signalOpen') :
+      document.querySelector('#studioNav [data-view="'+layout.activeView(next)+'"]')
     layout.open(openTools)
-    if (next === 'code') requestAnimationFrame(() => cm.refresh())
-    if (next === 'library') library()
+    if (layout.activeView(next)==='code') requestAnimationFrame(()=>cm.refresh())
+    if (next==='library') library()
   }
+  layout.wide.addEventListener('change',()=>changeView(view,layout.opened))
+  function showLayers(on) {
+    layout.setLayersVisible(on)
+    if (!on) sectors.panel(null)
+    sectors.show(on)
+  }
+  $('closeSectors').onclick = () => {
+    showLayers(false)
+    $('backToLayers').focus({preventScroll:true})
+  }
+  $('closeTools').onclick = () => {
+    layout.open(false)
+    layout.activeTool?.focus({preventScroll:true})
+  }
+  for (const id of ['newSector','addSectorEffect']) {
+    $(id).addEventListener('click',()=>{
+      const panel=$(id==='newSector' ? 'sectorShapes' : 'effectPicker')
+      if (!panel.hidden) panel.scrollIntoView({block:'nearest'})
+    })
+  }
+  document.addEventListener('pointerdown',event=>{
+    if (!$('outputChoices').hidden && !$('outputChoices').contains(event.target) &&
+        !$('chooseOutput').contains(event.target)) outputPicker(false)
+  })
+  document.addEventListener('keydown',event=>{
+    if (event.key==='Escape' && !$('outputChoices').hidden && !$('helpDialog').open) {
+      outputPicker(false)
+      $('chooseOutput').focus()
+    }
+  })
   function openPanel(tab) {
+    signalTab = tab
     changeView('signal')
     selectButtons('[data-tab]', 'tab', tab)
     all('[data-pane]').forEach((el) => (el.hidden = el.dataset.pane !== tab))
     if (tab === 'input') listCameras()
   }
+  function fromToolbar(next, tab) {
+    if (layout.wide.matches && next==='sectors') {
+      showLayers(true)
+      $('newSector').focus({preventScroll:true})
+      return
+    }
+    if (layout.activeView(view)===next && (!tab || signalTab===tab)) layout.open(true)
+    else if (tab) openPanel(tab)
+    else changeView(next)
+    if (next==='code' && !layout.compact.matches) cm.focus()
+  }
   all('[data-view]').forEach(
-    (b) =>
-      (b.onclick = () => {
-        if (layout.compact.matches && view === b.dataset.view) {
-          layout.open(!layout.opened)
-        } else if (b.dataset.view === 'signal') openPanel('input')
-        else changeView(b.dataset.view)
-      })
+    b => b.onclick = () => fromToolbar(b.dataset.view, b.dataset.view === 'signal' ? 'input' : undefined)
   )
   all('[data-tab]').forEach((b) => (b.onclick = () => openPanel(b.dataset.tab)))
-  $('soundOpen').onclick = $('signalOpen').onclick = () => openPanel('audio')
+  $('signalOpen').onclick = () => fromToolbar('signal','audio')
   all('[data-output]').forEach(
     (b) =>
       (b.onclick = () => {
@@ -341,7 +509,6 @@
     cm.setValue(text)
     cm.clearHistory()
     loading = false
-    refreshEffectList()
   }
   function draft() {
     return {
@@ -370,7 +537,7 @@
     }
     return false
   }
-  function restoreEditor(reference, play) {
+  function restoreEditor(reference, play, fallback) {
     const recovered = stored('draft', null)
     const sameEntry = recovered?.historyEntry && recovered.historyEntry === history.state?.fosfenoEntry
     if (typeof recovered?.code === 'string' && (!reference || sameEntry)) {
@@ -381,12 +548,13 @@
     } else if (reference && !play) {
       load(reference, false, false)
     } else {
-      current = reference || SKETCHES[0]
+      current = reference || fallback
       setText(current.code)
       $('scoreName').value = current.name
-      status(live ? 'En vivo · Editá el código para cambiar la imagen.' : 'Modo manual · Ejecutá para actualizar la imagen.')
+      if (current.generator) $('seed').value=current.generator.seed
+      status('Sketch en salida.')
     }
-    changeView('code', false)
+    changeView('sectors', false)
   }
   function load(item, play = true, manual = true) {
     if (!item) return
@@ -412,8 +580,7 @@
     if (play && panelInputMix && inputs[0].current) {
       loading = true
       try { mixInput() } finally { loading = false }
-      refreshEffectList()
-    }
+      }
     if (play) execute(cm.getValue(), { fresh: true })
     else status('Preparado. Ejecutá para llevar este código a la salida.')
     return true
@@ -437,7 +604,7 @@
             if (remember) sectors.apply()
           } else appliedText = null
           pendingFresh = false
-          status(whole ? 'En vivo · Sketch ejecutado' : 'En vivo · Bloque ejecutado')
+          status(whole ? 'Sketch ejecutado' : 'Bloque ejecutado')
           if (remember && location.protocol !== 'file:') {
             try {
               const url = new URL(location.href)
@@ -489,9 +656,9 @@
     revision++
     modified = true
     toggleAuto(false)
-    refreshEffectList()
     clearTimeout(timer)
-    status(armed && live ? 'Aplicando cambios…' : 'Cambios pendientes · Ejecutá para llevarlos a la salida.')
+    status(live ? (armed ? 'Actualizando la salida…' : 'Ejecutá para activar este sketch.') : 'Cambios preparados.')
+    refreshApply()
     timer = setTimeout(() => {
       flush()
       if (live && armed) execute(cm.getValue())
@@ -502,6 +669,20 @@
     flush()
   }
   $('run').onclick = runAll
+  $('applySectors').onclick = async () => {
+    if (applying || live || !(codePending() || sectors.dirty)) return
+    const restoreFocus = document.activeElement===$('applySectors')
+    applying=true
+    refreshApply()
+    try {
+      if (codePending() && !await execute(cm.getValue())) return
+      sectors.apply()
+    } finally {
+      applying=false
+      refreshApply()
+      if (restoreFocus && $('applySectors').hidden && document.activeElement===document.body) $('liveEdit').focus({preventScroll:true})
+    }
+  }
   $('block').onclick = () =>
     cm.somethingSelected() ? runRange(cm.getCursor('from'), cm.getCursor('to')) : runBlock()
   $('hydraLink').onclick = () => {
@@ -512,17 +693,19 @@
   $('liveEdit').onclick = () => {
     live = !live
     if (live) sectors.apply()
-    $('liveEdit').setAttribute('aria-pressed', live)
+    updateLiveEdit()
     store('live-edit', live)
     clearTimeout(timer)
     flush()
     if (live && armed) execute(cm.getValue())
-    else status(armed ? 'Modo manual · Ejecutá para actualizar la imagen.' : 'Ejecutá una vez para activar este documento.')
+    else status(live ? 'Ejecutá para activar este sketch.' : 'Edición manual')
+    refreshApply()
   }
   window.addEventListener('pagehide', flush)
   $('save').onclick = () => {
     if (archive(true)) {
       store('draft', null)
+      if (view === 'library') library()
       status('Guardado en Biblioteca → Mis sketches.')
     }
   }
@@ -544,17 +727,42 @@
     label.textContent = item.name
     group.textContent = item.group || 'Mi biblioteca'
     open.append(label, group)
-    open.onclick = () => load(item, play)
+    const region = layerTarget()
+    open.onclick = () => {
+      if (!region) return load(item,play)
+      sectors.toggleLibrary(region,item,true)
+      changeView('sectors')
+    }
     const mix = document.createElement('button')
     mix.className = 'line-button'
     mix.textContent = 'Mezclar'
     mix.setAttribute('aria-label', 'Mezclar ' + item.name)
-    mix.onclick = () => editAction(() => {
-      const fragment = libraryBlend(analysis(), item, engine.hydra.generator.glslTransforms)
-      insertOperator(fragment, null, false)
-      notify(live && armed ? 'Capa agregada al código · ' + item.name : 'Capa en el código. Ejecutá para proyectarla.')
-    })
-    row.append(open, mix)
+    const target = region || sectors.principal
+    const refresh = () => {
+      const on = target.fx.some(f=>f.kind==='library' && f.enabled!==false && f.name===item.name && f.code===item.code)
+      mix.setAttribute('aria-pressed',on)
+      mix.textContent = on ? 'En mezcla' : 'Mezclar'
+      strength.hidden=!on
+      if (on) {
+        slider.value=Math.round(target.fx.find(f=>f.kind==='library' && f.name===item.name && f.code===item.code).value*100)
+        level.value=slider.value+'%'
+        paintRange(slider)
+      }
+    }
+    const strength=document.createElement('label'), slider=document.createElement('input'), level=document.createElement('output')
+    strength.className='library-strength'
+    slider.type='range'; slider.min=0; slider.max=100
+    slider.setAttribute('aria-label','Mezcla de '+item.name)
+    slider.oninput=()=>{
+      const index=target.fx.findIndex(f=>f.kind==='library' && f.name===item.name && f.code===item.code)
+      if (index<0) return
+      sectors.effectAmount(target,index,Number(slider.value)/100)
+    }
+    strength.append(slider,level)
+    mix.onclick = () => sectors.toggleLibrary(target,item,false)
+    libraryRows.set(row,refresh)
+    refresh()
+    row.append(open, mix, strength)
     return row
   }
   function library() {
@@ -620,18 +828,44 @@
       })
   )
   selectButtons('[data-fold]', 'fold', 'libre')
+  function seedSketch(seed,symmetry = 'libre') {
+    return {id:'seed-'+seed,name:'Semilla '+seed,code:growSketch(seed,symmetry),generator:{seed,fold:symmetry}}
+  }
+  function randomSeed() {
+    return crypto.getRandomValues(new Uint32Array(1))[0]
+  }
+  function startupSketch() {
+    let seed=randomSeed()
+    try {
+      if (sessionStorage.getItem('fosfeno:last-seed')===String(seed)) seed=(seed+1)>>>0
+      sessionStorage.setItem('fosfeno:last-seed',String(seed))
+    } catch {}
+    return seedSketch(seed)
+  }
   function generate(fromField, manual = true) {
     const raw = fromField ? $('seed').value.trim() : ''
     if (raw && (!/^\d+$/.test(raw) || Number(raw) > 4294967295)) {
       notify('Usá una semilla entera entre 0 y 4294967295.')
       return
     }
-    const seed = raw ? Number(raw) : crypto.getRandomValues(new Uint32Array(1))[0]
-    load({ id: 'seed-' + seed, name: 'Semilla ' + seed, code: growSketch(seed, fold), generator:{seed,fold} }, true, manual)
+    const seed = raw ? Number(raw) : randomSeed()
+    const target = manual && layerTarget()
+    if (target) {
+      sectors.toggleLibrary(target,{name:'Semilla '+seed,code:growSketch(seed,fold)},true)
+      changeView('sectors')
+      return
+    }
+    load(seedSketch(seed,fold),true,manual)
   }
   $('grow').onclick = () => generate(true)
   $('explore').onclick = () => generate(false)
   $('blank').onclick = () => {
+    if (layerTarget()) {
+      changeView('sectors')
+      sectors.panel('layerCode',true)
+      $('sectorCode').focus()
+      return
+    }
     load({ id: 'nuevo', name: 'Sin título', code: '// Tu sketch Hydra\n\n' }, false)
     if (current.id === 'nuevo') {
       armed = true
@@ -642,7 +876,13 @@
   $('jsFile').onchange = async (e) => {
     const file = e.target.files[0]
     try {
-      if (file)
+      if (file && layerTarget()) {
+        const content = await file.text()
+        changeView('sectors')
+        sectors.panel('layerCode',true)
+        $('sectorCode').value=content
+        $('sectorCode').focus()
+      } else if (file)
         load(
           { id: 'importado', name: file.name.replace(/\.(js|txt)$/i, ''), code: await file.text() },
           false
@@ -652,8 +892,7 @@
     }
     e.target.value = ''
   }
-  let removing = false, sourceMix = null, panelInputMix = false, appliedText = null, syncEdits = false
-  const helperMarks = new Map()
+  let sourceMix = null, panelInputMix = false, appliedText = null, syncEdits = false
   function analysis() {
     return inspectScore(cm.getValue(), engine.hydra.generator.glslTransforms)
   }
@@ -666,7 +905,7 @@
     }
     return info.outputs.findLast(o => o.name === name)
   }
-  function insertOperator(fragment, definition, atCursor = true) {
+  function insertOperator(fragment, atCursor = true) {
     const info = analysis()
     const out = targetOutput(info, atCursor)
     if (!out && !info.empty) throw new Error('Elegí una cadena que termine en .out() o seleccioná su salida arriba.')
@@ -678,12 +917,6 @@
       const pos = cm.posFromIndex(where)
       cm.replaceRange(prefix + fragment + (out ? '' : '.out(o0)'), pos)
       mark = cm.markText(cm.posFromIndex(where + prefix.length), cm.posFromIndex(where + prefix.length + fragment.length))
-      if (definition && !info.calls.some(c => c.callee.name === 'setFunction' &&
-        c.arguments[0]?.properties?.some(p => p.key?.name === 'name' && p.value?.value === definition))) {
-        const text = MIRRORS[definition] + '\n\n'
-        cm.replaceRange(text, { line: 0, ch: 0 })
-        helperMarks.set(definition, cm.markText({ line: 0, ch: 0 }, cm.posFromIndex(text.length)))
-      }
     })
     return mark
   }
@@ -691,80 +924,25 @@
     try { return fn() }
     catch (e) { status(e.message, true); notify(e.message) }
   }
-  function refreshEffectList() {
-    if (!removing || !engine) return
-    const root = $('activeEffects')
-    root.replaceChildren()
-    let info
-    try { info = analysis() } catch {
-      root.textContent = 'Completá la expresión para editar sus efectos.'
-      return
-    }
-    if (!info.effects.length) root.textContent = 'Este código todavía no tiene efectos encadenados.'
-    for (const effect of info.effects) {
-      const b = document.createElement('button')
-      const code = cm.getValue().slice(effect.start, effect.end)
-      const label = effect.layer || OPERATORS.find(op => op[1] === code)?.[0] || effect.name
-      const line = cm.posFromIndex(effect.start).line + 1
-      b.textContent = '× ' + label
-      const detail = document.createElement('small')
-      detail.textContent = (effect.output || 'función') + ' · línea ' + line
-      b.append(detail)
-      b.title = 'Quitar ' + (effect.layer || code)
-      b.setAttribute('aria-label', 'Quitar ' + label + ', ' + detail.textContent)
-      b.onclick = () => {
-        cm.operation(() => {
-          syncEdits = true
-          cm.replaceRange('', cm.posFromIndex(effect.start), cm.posFromIndex(effect.end))
-          const helper = helperMarks.get(effect.name)?.find()
-          if (helper && !analysis().effects.some(e => e.name === effect.name) &&
-              cm.getRange(helper.from, helper.to) === MIRRORS[effect.name] + '\n\n') {
-            cm.replaceRange('', helper.from, helper.to)
-            helperMarks.delete(effect.name)
-          }
-        })
-      }
-      if (effect.amount && effect.amount.value >= 0 && effect.amount.value <= 1) {
-        const cell = document.createElement('div'), slider = document.createElement('input')
-        cell.className = 'blend-strength'
-        slider.type = 'range'; slider.min = 0; slider.max = 100
-        slider.value = Math.round(effect.amount.value * 100)
-        slider.setAttribute('aria-label','Porcentaje de mezcla de ' + label + ', línea ' + line)
-        const value = document.createElement('output')
-        value.value = slider.value + '%'
-        slider.oninput = () => { value.value = slider.value + '%' }
-        slider.onchange = () => cm.replaceRange(String(Number(slider.value)/100),
-          cm.posFromIndex(effect.amount.start),cm.posFromIndex(effect.amount.end))
-        cell.append(b,slider,value); root.append(cell)
-      } else root.append(b)
-    }
+  function removeEffect(effect) {
+    syncEdits = true
+    cm.replaceRange('',cm.posFromIndex(effect.start),cm.posFromIndex(effect.end))
   }
   const operatorEditor = new OperatorEditor(cm,()=>engine.hydra.generator.glslTransforms,(expression,source)=>editAction(()=>{
-    if (source && analysis().empty) cm.replaceRange('\n'+expression+'.out(o0)',cm.posFromIndex(cm.getValue().length))
-    else insertOperator(source ? '.blend('+expression+', 0.5)' : '.'+expression,null)
-  }), async item=>{
+    const target=sectors.target()
+    sectors.add(target,{kind:'operator',name:expression.split('(')[0],
+      code:source ? '.blend('+expression+', 0.5)' : '.'+expression,definitions:[]})
+  }),async item=>{
     await creations.add(item.name,packComposition(item),'operator')
     notify('Operador guardado en Biblioteca → Creaciones portátiles.')
-  },notify)
-  function effectMode(mode) {
-    removing = mode === 'remove'
-    $('ops').hidden = $('hydraCatalog').hidden = mode !== 'add'
-    $('operatorInspector').hidden = mode !== 'adjust'
-    $('activeEffects').hidden = !removing
-    for (const name of ['add','adjust','remove']) $(name+'Mode').setAttribute('aria-pressed',name===mode)
-    if (mode==='adjust') operatorEditor.draw()
-    refreshEffectList()
+  },removeEffect,notify)
+  function showCodeInspector(open) {
+    $('operatorInspector').hidden=!open
+    $('effectPanel').hidden=!open
+    $('adjustMode').setAttribute('aria-expanded',open)
+    if (open) { operatorEditor.draw(); $('effectPanel').scrollTop=0 }
   }
-  $('addMode').onclick = () => effectMode('add')
-  $('removeMode').onclick = () => effectMode('remove')
-  $('adjustMode').onclick = () => effectMode('adjust')
-  for (const [label, fragment, , definition] of OPERATORS) {
-    const b = document.createElement('button')
-    b.textContent = label
-    b.title = fragment
-    b.onclick = () => editAction(() => insertOperator(fragment, definition))
-    $('ops').append(b)
-  }
+  $('adjustMode').onclick=()=>showCodeInspector($('operatorInspector').hidden)
   const cameraBlend = '.blend(src(s0), 0.65)'
   function mixInput() {
     panelInputMix = true
@@ -778,7 +956,7 @@
         $('routeStatus').textContent = 'La salida ' + out.name + ' ya usa s0.'
         return
       }
-      sourceMix = insertOperator(cameraBlend, null, false)
+      sourceMix = insertOperator(cameraBlend,false)
       $('routeStatus').textContent = live ? 'Entrada mezclada en la visual.' : 'Mezcla preparada. Ejecutá para proyectarla.'
     } catch {
       $('routeStatus').textContent = 'La entrada está lista. Para verla directamente elegí Ver sólo la fuente.'
@@ -846,14 +1024,7 @@
       execute(cm.getValue())
     }
   }
-  function openOps(open) {
-    $('effectPanel').hidden = !open
-    $('effectModes').hidden = !open
-    $('opsToggle').setAttribute('aria-expanded', open)
-    requestAnimationFrame(() => cm.refresh())
-  }
-  $('opsToggle').onclick = () => openOps($('effectPanel').hidden)
-  openOps(!layout.compact.matches)
+  showCodeInspector(false)
   document.addEventListener('keydown', (e) => {
     if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
       e.preventDefault()
@@ -878,7 +1049,7 @@
     if (!quiet) cm.refresh()
   }
   function meterStyle(el) {
-    el.style.setProperty('--amount', (100 * (+el.value - el.min)) / (el.max - el.min) + '%')
+    paintRange(el)
   }
   function bindRange(el, fn, format) {
     const out = document.querySelector('output[for="' + el.id + '"]')
@@ -911,6 +1082,8 @@
     bindRange($(key), fn, format)
   }
   range('inputRanges', 'brushSize', 'Grosor del pincel', 0, 100, 42, (v) => (state.brush = v / 100))
+  range('inputRanges', 'brushSpeed', 'Velocidad', 25, 300, 100, (v) => (state.brushSpeed = v / 100))
+  range('inputRanges', 'brushDetail', 'Definición final', 0, 100, 65, (v) => (state.brushDetail = v / 100))
   range(
     'audioRanges',
     'sensitivity',
@@ -957,9 +1130,15 @@
         updateBrush()
       })
   )
+  $('brushInverse').onclick = () => {
+    state.brushInverse=!state.brushInverse
+    $('brushInverse').setAttribute('aria-pressed',state.brushInverse)
+  }
   function updateBrush() {
     const source = inputs[0].current
-    $('brushSize').disabled = !state.painting
+    $('inputRanges').hidden = !state.painting
+    $('brushInverse').hidden = !state.painting
+    $('brushProgress').hidden = !state.painting
     $('repaint').disabled = !source || !state.painting
     $('insertSource').disabled = !source
     $('sourceOnly').disabled = !source
@@ -982,13 +1161,19 @@
   selectButtons('[data-q]', 'q', 'auto')
 
   const creations = new CompositionLibrary({sectors, notify, capture() {
-    const {painting,brush,internalPulse,sensitivity,quality} = state
+    const {painting,brush,brushSpeed,brushDetail,brushInverse,internalPulse,sensitivity,quality} = state
     return {name:$('scoreName').value.trim() || 'Sin título',code:cm.getValue(),regions:sectors.snapshot(),selectedSector:sectors.id,
       input:inputs[0].current?.file, inputKind:inputs[0].current?.kind || null,
-      settings:{painting,brush,internalPulse,sensitivity,quality,resolution:state.sketchResolution || null,bpm:window.bpm,output:engine.output,
+      settings:{painting,brush,brushSpeed,brushDetail,brushInverse,internalPulse,sensitivity,quality,resolution:state.sketchResolution || null,bpm:window.bpm,output:engine.output,
         autoMix:$('autoMixInput').getAttribute('aria-pressed') === 'true',fold,seed:$('seed').value}}
   }, async activate(project) {
     if (project.kind === 'operator') {
+      const target = layerTarget()
+      if (target) {
+        sectors.add(target,{kind:'operator',name:project.name,code:project.code,definitions:project.definitions,origin:project.origin})
+        changeView('sectors')
+        return
+      }
       const info = analysis()
       if (!info.empty && !targetOutput(info,true)) throw new Error('Elegí una cadena con .out() antes de insertar el operador.')
       const missing = project.definitions.filter(d=>!cm.getValue().includes(d))
@@ -1000,7 +1185,7 @@
       const credits = project.origin.filter(line=>!cm.getValue().includes(line))
       changeView('code')
       cm.operation(()=>{
-        insertOperator(project.code,null)
+        insertOperator(project.code)
         const prefix = [...credits,...missing].join('\n')
         if (prefix) cm.replaceRange(prefix+'\n\n',{line:0,ch:0})
       })
@@ -1021,7 +1206,8 @@
       if (medium) { inputs[0].cancel(); inputs[0].replace(medium); medium=null }
       else if (inputs[0].current === originalInput && originalInput && originalInput.kind !== project.inputKind) inputs[0].clear()
       const settings = project.settings
-      for (const [id,value] of [['brushSize',settings.brush*100],['sensitivity',settings.sensitivity*100]]) {
+      for (const [id,value] of [['brushSize',settings.brush*100],['sensitivity',settings.sensitivity*100],
+        ['brushSpeed',(settings.brushSpeed ?? 1)*100],['brushDetail',(settings.brushDetail ?? .65)*100]]) {
         $(id).value = value; $(id).oninput()
       }
       state.bpm = window.bpm = settings.bpm
@@ -1029,6 +1215,8 @@
       tempo.min = Math.min(1,settings.bpm); tempo.max = Math.max(220,settings.bpm); tempo.value = settings.bpm
       document.querySelector('output[for="bpm"]').textContent = settings.bpm+' BPM'; meterStyle(tempo)
       state.painting = settings.painting; brush.reset(); updateBrush()
+      state.brushInverse = settings.brushInverse===true
+      $('brushInverse').setAttribute('aria-pressed',state.brushInverse)
       selectButtons('[data-brush]','brush',settings.painting ? 'on' : 'off')
       state.internalPulse = settings.internalPulse; $('internalPulse').setAttribute('aria-pressed',settings.internalPulse)
       $('autoMixInput').setAttribute('aria-pressed',settings.autoMix)
@@ -1041,9 +1229,35 @@
       notify('Composición en salida · '+project.name)
     } finally {
       if (medium) releaseVisual(medium)
-      if (!installed) next.forEach(s=>s.file?.clear())
+      if (!installed) next.flatMap(sectorLayers).forEach(layer=>layer.file?.clear())
     }
   }})
+  new LoopLibrary({
+    store:(mode,job)=>sectors.store(mode,job), notify,
+    openLibrary:()=>{
+      dismissToast()
+      if (document.body.classList.contains('preview-focus')) layout.focus(false)
+      changeView('library')
+    },
+    destination:layerTarget,
+    source:()=>{
+      const target=sectorTarget()
+      return target ? {...sectors.captureSource(target),name:target.shape+' '+target.id} : {canvas,name:'Salida'}
+    },
+    use:async (file,target)=>{
+      if (target) {
+        if (!sectors.containsLayer(target) || !await sectors.setFile(target,file)) return
+        if (target!==layerTarget()) return
+        if (layout.wide.matches) showLayers(true)
+        changeView('sectors')
+        sectors.panel('sectorMedia',true)
+        $('sectorFileButton').focus()
+      } else if (await inputs[0].open('file',{file})) {
+        mixInput()
+        if (!layerTarget()) openPanel('input')
+      }
+    }
+  })
 
   let cameraListVersion = 0
   function visualStatus(message) {
@@ -1088,6 +1302,7 @@
     const info = input?.file?.name || track?.label || 'Fuente visual'
     $('visualName').textContent = input ? info + ' · s0' : 'Sin fuente conectada'
     $('clearVisual').hidden = !input
+    $('clearVisual').textContent = input?.kind === 'camera' ? 'Desconectar cámara' : 'Desconectar entrada'
     const preview = $('sourcePreview')
     preview.replaceChildren()
     if (input?.kind === 'camera') {
@@ -1113,9 +1328,16 @@
     $('autoMixInput').setAttribute('aria-pressed', on)
   }
   async function openVisual(kind, options, mix = $('autoMixInput').getAttribute('aria-pressed') === 'true') {
+    const layer = layerTarget()
+    const region = sectorTarget()
     try {
       if (!await inputs[0].open(kind, options)) return false
-      if (mix) mixInput()
+      if (layer && sectors.containsLayer(layer)) {
+        layer.source='s0'
+        layer.file=layer.request=null
+        sectors.changed()
+        $('routeStatus').textContent='Entrada s0 conectada a '+sectorLabel(region)+' · '+sectorLayerLabel(layer)+'.'
+      } else if (!layer && mix) mixInput()
       else $('routeStatus').textContent = 'Fuente conectada en s0, disponible para el código y los sectores.'
       return true
     } catch (err) {
@@ -1126,7 +1348,8 @@
   }
   $('camera').onclick = () => openVisual('camera')
   $('screen').onclick = () => openVisual('screen')
-  $('clearVisual').onclick = () => {
+  $('clearVisual').onclick = clearVisual
+  function clearVisual() {
     panelInputMix = false
     inputs[0].clear()
     const range = sourceMix?.find()
@@ -1135,6 +1358,7 @@
     }
     sourceMix = null
     $('routeStatus').textContent = ''
+    sectors.refresh()
   }
   $('cancelVisual').onclick = () => {
     inputs[0].cancel()
@@ -1144,7 +1368,11 @@
   $('fileVisual').onclick = () => $('visualFile').click()
   $('visualFile').onchange = (e) => {
     const file = e.target.files[0]
-    if (file) openVisual('file', { file })
+    const target = layerTarget()
+    if (file && target) sectors.setFile(target,file).then(()=>{
+      changeView('sectors'); sectors.panel('sectorMedia',true)
+    }).catch(err=>notify(err.message))
+    else if (file) openVisual('file', { file })
     e.target.value = ''
   }
 
@@ -1162,7 +1390,6 @@
     $('mic').classList.toggle('active', !!sound.micStream)
     $('record').classList.toggle('active', recording)
     $('record').querySelector('span').textContent = recording ? 'Detener y guardar' : 'Grabar muestra'
-    $('soundOpen').querySelector('b').classList.toggle('on', sound.active)
     $('signalName').textContent = sound.active
       ? 'Audio en vivo'
       : state.internalPulse ? 'Pulso interno' : 'Sin audio'
@@ -1246,7 +1473,7 @@
   sound.restore()
   if (location.protocol === 'file:') $('offline').textContent = '· Local'
   else if ('serviceWorker' in navigator) {
-    const workerURL = new URL('sw.js?v=2.7', location.href).href
+    const workerURL = new URL('sw.js?v=2.17', location.href).href
     const showOfflineReady = () => {
       if (navigator.serviceWorker.controller?.scriptURL === workerURL)
         $('offline').textContent = '· Disponible sin conexión'
@@ -1266,12 +1493,13 @@
   function resize() {
     if (!engine) return
     const external = projector && !projector.closed
-    const rect = stage.getBoundingClientRect()
+    const compactEdit = layout.opened && !document.body.matches('.preview-focus,.quiet,.projecting')
+    // Keep the sketch at the same resolution when the compact inspector opens.
+    const rect = (compactEdit ? layout.bench : stage).getBoundingClientRect()
     engine.resize(
       external ? projector.innerWidth : rect.width,
       external ? projector.innerHeight : rect.height
     )
-    canvas.style.objectFit = external ? 'contain' : 'fill'
     sectors.layout()
   }
   async function fullscreen() {
@@ -1295,7 +1523,7 @@
     resize()
   })
   stage.addEventListener('dblclick', (e) => {
-    if (e.target !== canvas) return
+    if (e.target !== canvas && (e.target !== sectors.guide || sectors.mode)) return
     if (document.body.classList.contains('quiet')) hideUI()
     else fullscreen().catch((e) => notify(messageFor(e)))
   })
@@ -1309,7 +1537,7 @@
     if (!canvas.captureStream)
       throw new Error('Usá Pantalla completa. Este navegador no admite una segunda salida.')
     const win = window.open('', '_blank', 'popup,width=960,height=540')
-    if (!win) throw new Error('Permití la ventana emergente o usá Señal → Salida → Pantalla completa.')
+    if (!win) throw new Error('Permití la ventana emergente o usá Imagen → Salida → Pantalla completa.')
     projector = win
     win.document.title = 'Fosfeno · Salida limpia'
     const v = win.document.createElement('video')
@@ -1400,7 +1628,7 @@
     }
     const source = inputs[0].current?.element
     if (source && (!(source instanceof HTMLVideoElement) || source.readyState >= 2)) {
-      const medium = state.painting ? brush.paint(source, now, state.brush, state.bands[0]) : source
+      const medium = state.painting ? brush.paint(source, now, state.brush, state.bands[0],state.brushSpeed,state.brushDetail,state.brushInverse) : source
       if (medium && engine.attached[0] !== medium)
         engine.setMedium(medium, 0, inputs[0].current.params)
     }
@@ -1410,6 +1638,11 @@
     if (now - lastUI > 120) {
       lastUI = now
       refreshMix()
+      if (state.painting) paintStatus('brushProgress',brush,state.brushInverse)
+      const layer=sectors.content(sectors.selected())
+      if ((view==='sectors' || (layout.wide.matches && layout.layersVisible)) && layer?.paint) {
+        paintStatus('sectorBrushProgress',sectors.activeBrush(),layer.brushInverse)
+      }
       const resolution = state.sketchResolution?.join(' × ') || ''
       if ($('codeResolution').dataset.size !== resolution) {
         $('codeResolution').dataset.size = resolution
@@ -1429,8 +1662,12 @@
       selectButtons('[data-output]', 'output', engine.output)
       const selected = document.querySelector('[data-output][aria-pressed="true"]')
       if (selected) {
-        const label = selected.textContent + ' ▾'
-        if ($('chooseOutput').textContent !== label) $('chooseOutput').textContent = label
+        const label = selected.textContent
+        if ($('outputCaption').textContent !== label) {
+          $('outputCaption').textContent=label
+          $('outputCompact').textContent=engine.output==='all' ? 'Mosaico' : 'Salida o'+engine.output
+          $('chooseOutput').setAttribute('aria-label','Elegir salida. '+label)
+        }
       }
       const bar = (i, n) => {
         const band = state.bands[Math.min(2, Math.floor((i / n) * 3))]
@@ -1474,6 +1711,11 @@
   function fail(text) {
     $('failure').textContent = text
     $('failure').hidden = false
+  }
+  function paintStatus(id,surface,inverse) {
+    const percent=Math.floor((surface?.progress || 0)*20)*5
+    const caption=(inverse ? 'Deconstrucción ' : 'Reconstrucción ')+percent+'%'
+    if ($(id).textContent!==caption) $(id).textContent=caption
   }
   canvas.addEventListener('webglcontextlost', (e) => {
     e.preventDefault()
@@ -1539,14 +1781,14 @@
       resize()
       new ResizeObserver(resize).observe(stage)
       const { item, bundled, error } = sketchAtURL()
-      await engine.run((bundled ? item : SKETCHES[0]).code)
-      appliedText = (bundled ? item : SKETCHES[0]).code
-      restoreEditor(item, bundled)
+      const fallback=bundled ? item : startupSketch()
+      await engine.run(fallback.code)
+      appliedText = fallback.code
+      restoreEditor(item,bundled,fallback)
       initialDocument = { item: current, play: armed && !pendingFresh }
       if (error) status(error, true)
       else if (location.protocol !== 'file:' && !history.state?.fosfenoEntry) {
         const url = new URL(location.href)
-        if (!item && armed && !pendingFresh) url.searchParams.set('sketch_id', current.id)
         try {
           history.replaceState({ ...history.state, fosfenoEntry: historySession }, '', url)
         } catch {

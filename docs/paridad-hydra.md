@@ -4,7 +4,7 @@ Prueba local del 23 de noviembre de 2026 en Windows y Chromium 148.0.7778.96. Se
 
 ## Qué abre el sitio oficial
 
-La portada sin parámetros elige al azar una entrada de la galería. Tres sesiones nuevas mostraron *tropical juice* (`ritchse_2`), *MULTIVERSE* (`eerie_ear_0`) y *egg of the phoenix* (`alexandre_2`). Fosfeno fija *MULTIVERSE* para que el arranque sea reproducible. *tropical juice* contiene un zoom periódico propio del sketch. *MULTIVERSE* usa tiempo y realimentación y conserva su movimiento original. [Selección y preparación del código](https://github.com/hydra-synth/hydra/blob/523e0feaf3f49899b759ce0e7afabe0114ddfe2b/src/stores/gallery.js#L129-L205)
+La portada sin parámetros elige al azar una entrada de la galería. Tres sesiones nuevas mostraron *tropical juice* (`ritchse_2`), *MULTIVERSE* (`eerie_ear_0`) y *egg of the phoenix* (`alexandre_2`). Las comparaciones abren `?sketch_id=eerie_ear_0` explícitamente en ambos editores para repetir la misma pieza. La portada de Fosfeno genera una pieza a partir de una semilla aleatoria. [Selección y preparación del código de Hydra](https://github.com/hydra-synth/hydra/blob/523e0feaf3f49899b759ce0e7afabe0114ddfe2b/src/stores/gallery.js#L129-L205)
 
 Se leyó el documento de CodeMirror de Hydra y se comparó con el de Fosfeno. Ambos contenían los mismos 811 bytes UTF-8, incluidos comentarios y saltos de línea finales. El SHA-256 es `dc19d3a78597e4611844e73f6775700ee004031c504d8821a02871e46a43076d`. Al recuperar un borrador personal, Fosfeno conserva el texto del operador. [Abrir el original de e_e (@eerie_ear)](https://hydra.ojack.xyz/?sketch_id=eerie_ear_0)
 
@@ -79,6 +79,7 @@ La prueba de portabilidad pasó entre dos perfiles de Chromium con almacenamient
 6. Ejecutá `node scripts/check-mixer.cjs` para probar mezcla, sectores, ventanas y controles desde la interfaz.
 7. Ejecutá `node scripts/check-layout.cjs` para tamaños de pantalla, ayuda, ampliación, gestos y recarga sin conexión. Con `firefox` o `webkit` como argumento se repite el recorrido de interfaz en esos motores.
 8. Ejecutá `node scripts/check-portable.cjs` para repetir la transferencia de composiciones y operadores entre perfiles. Admite una URL de la cabina como argumento.
+9. Ejecutá `node scripts/check-layers.cjs` para probar las ayudas ancladas, el feedback privado con los cuatro buffers principales ocupados, los sliders, el video grabado de un sector, pinceladas en los dos sentidos y la desconexión con una cámara simulada.
 
 ## Procedencia del código
 
