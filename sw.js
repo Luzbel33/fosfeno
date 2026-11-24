@@ -1,18 +1,24 @@
 // Bump the asset version when publishing a new edition of the cabina.
 const prefix = 'fosfeno-' + new URL(self.registration.scope).pathname + '-'
-const cacheName = prefix + 'v2.0.17.1'
+const cacheName = prefix + 'v2.18'
 const files = [
   'index.html',
   'abrir.html',
-  'style.css?v=2.17',
+  'mapeo.html',
+  'style.css?v=2.18',
+  'mapping.css',
+  'src/mapping.js',
+  'src/mapping-output.mjs',
+  'src/mapping-project.mjs',
+  'src/studio-storage.js',
   'src/sketches.js?v=2.16',
   'vendor/acorn/dist/acorn.js',
   'src/engine.js?v=2.16',
   'src/media.js?v=2.16',
   'src/visual-input.js?v=2.4',
-  'src/app.js?v=2.17',
+  'src/app.js?v=2.18',
   'src/score-tools.js?v=2.16',
-  'src/sectors.js?v=2.17',
+  'src/sectors.js?v=2.18',
   'src/sector-program.js?v=2.16',
   'src/loops.js?v=2.17',
   'src/layout.js?v=2.17',
@@ -66,12 +72,12 @@ self.addEventListener('fetch', (event) => {
   if (req.method !== 'GET') return
   const root = new URL(self.registration.scope)
   const path = new URL(req.url).pathname
-  const documentRequest = req.mode === 'navigate' &&
-    [root.pathname,root.pathname+'index.html',root.pathname+'abrir.html'].includes(path)
+  const entry = path === root.pathname ? 'index.html' : path.slice(root.pathname.length)
+  const documentRequest = req.mode === 'navigate' && path.startsWith(root.pathname) &&
+    ['index.html', 'abrir.html', 'mapeo.html'].includes(entry)
   if (documentRequest) {
     const fallback = async () => {
       const cache = await caches.open(cacheName)
-      const entry = path===root.pathname+'abrir.html' ? 'abrir.html' : 'index.html'
       return await cache.match(new URL(entry,root).href) || Response.error()
     }
     // The HTML picks the versioned bundle. Keep the complete cached edition

@@ -1,0 +1,134 @@
+<!doctype html>
+<html lang="es-AR">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+    <meta name="theme-color" content="#101211">
+    <title>Fosfeno · Mapeo</title>
+    <link rel="icon" href="assets/mark.svg">
+    <link rel="stylesheet" href="style.css?v=2.18">
+    <link rel="stylesheet" href="mapping.css">
+  </head>
+  <body class="mapping">
+    <header class="map-header">
+      <div class="map-brand"><img src="assets/mark.svg" alt=""><h1>Mapeo</h1><a id="mapStudio" href="./">Estudio Hydra</a></div>
+      <div class="map-output-actions">
+        <button id="mapBlackout" type="button" aria-pressed="false" title="Poner el proyector en negro">Apagón</button>
+        <button id="mapOutput" type="button" class="primary">Abrir proyector</button>
+      </div>
+    </header>
+    <main class="map-main">
+      <section class="map-editor" aria-label="Mesa de mapeo">
+        <div class="map-toolbar">
+          <div class="map-controls" role="group" aria-label="Herramientas de la visual">
+            <button data-tool="select" type="button" aria-pressed="true">Mover</button>
+            <button data-tool="brush" type="button" aria-pressed="false">Pincel</button>
+            <button id="mapAddMedia" type="button">+ Foto o video</button>
+            <button id="mapAddHydra" type="button">+ Hydra en vivo</button>
+            <button id="mapLoops" type="button" aria-controls="mapLoopList" aria-expanded="false">Mis loops</button>
+          </div>
+          <div class="map-controls map-history" role="group" aria-label="Historial">
+            <button id="mapUndo" type="button" aria-label="Deshacer" title="Deshacer" disabled>↶</button>
+            <button id="mapRedo" type="button" aria-label="Rehacer" title="Rehacer" disabled>↷</button>
+          </div>
+        </div>
+        <div id="mapLoopList" class="map-popup" hidden></div>
+        <div id="mapBrushOptions" class="map-subbar" hidden>
+          <div class="map-controls" role="group" aria-label="Estilo de pincel">
+            <button type="button" data-brush="solid" aria-pressed="false">Sólido</button>
+            <button type="button" data-brush="neon" aria-pressed="true">Neón</button>
+            <button type="button" data-brush="dots" aria-pressed="false">Puntos</button>
+          </div>
+          <label class="map-color">Color <input id="mapBrushColor" value="#a9ff50" maxlength="7" spellcheck="false" autocapitalize="off" aria-label="Color hexadecimal del pincel"></label>
+          <div class="map-swatches" role="group" aria-label="Paleta del pincel">
+            <button type="button" data-color="#a9ff50" style="--ink:#a9ff50" aria-label="Verde"></button>
+            <button type="button" data-color="#ff55ad" style="--ink:#ff55ad" aria-label="Rosa"></button>
+            <button type="button" data-color="#4de4ff" style="--ink:#4de4ff" aria-label="Celeste"></button>
+            <button type="button" data-color="#ffffff" style="--ink:#fff" aria-label="Blanco"></button>
+          </div>
+          <label class="map-slider">Grosor <input id="mapBrushSize" type="range" min="2" max="60" value="12"><output id="mapBrushValue" for="mapBrushSize">12</output></label>
+        </div>
+        <div id="mapViewport" class="map-viewport">
+          <div id="mapSurface" class="map-surface" data-cursor="select">
+            <div id="mapReference" aria-hidden="true"></div>
+            <canvas id="mapPreview" aria-label="Vista de la superficie. Los trazos y recortes aparecen sobre esta imagen."></canvas>
+            <div id="mapEmpty" class="map-empty">
+              <strong>La superficie es tu lienzo</strong>
+              <span>Conectá la cámara o empezá a pintar.</span>
+              <button id="mapStartBrush" type="button">Elegir pincel</button>
+            </div>
+          </div>
+        </div>
+        <div id="mapCalibrateBar" class="map-calibration-bar" hidden>
+          <strong id="mapCalibrateStep" role="status"></strong>
+          <button id="mapBackPoint" type="button">Deshacer punto</button>
+          <button id="mapCancel" type="button">Cancelar</button>
+        </div>
+        <div class="map-statusbar">
+          <span id="mapState" class="map-state">Sin calibrar</span>
+          <p id="mapStatus" role="status"></p>
+        </div>
+      </section>
+      <aside class="map-inspector" aria-label="Superficie y capas">
+        <section class="map-section">
+          <div class="map-title"><h2>Superficie</h2><button id="mapHelp" type="button" class="map-help" aria-label="Cómo calibrar" aria-expanded="false" aria-controls="mapInstructions">?</button></div>
+          <div id="mapInstructions" class="map-help-text" hidden>
+            <ol>
+              <li>Apuntá el proyector y una cámara fija hacia la misma superficie plana.</li>
+              <li>Abrí la salida, movela al proyector y hacé doble clic ahí para ocupar toda la pantalla.</li>
+              <li>Tocá Calibrar. Marcá el centro de cada cruz numerada sobre la cámara, en orden.</li>
+            </ol>
+            <p>También podés fotografiar las cruces y cargar la foto como referencia. Recalibrá si movés el equipo.</p>
+          </div>
+          <div class="map-controls map-inputs">
+            <button id="mapCamera" type="button">Conectar cámara</button>
+            <button id="mapReferenceFile" type="button">Foto de referencia</button>
+            <button id="mapClearReference" type="button" hidden>Quitar referencia</button>
+            <button id="mapFreeze" type="button" aria-pressed="false" hidden>Congelar vista</button>
+          </div>
+          <details id="mapCameraChoices" class="map-choice" hidden>
+            <summary id="mapCameraLabel">Elegir cámara</summary><div id="mapCameraList"></div>
+          </details>
+          <div class="map-calibration-actions">
+            <button id="mapCalibrate" type="button" class="map-outline">Calibrar</button>
+            <details class="map-choice" id="mapFormatChoice">
+              <summary id="mapFormatLabel" aria-label="Formato del proyector">16:9</summary>
+              <div role="group" aria-label="Formatos de salida">
+                <button type="button" data-format="16:9" aria-pressed="true">16:9</button>
+                <button type="button" data-format="16:10" aria-pressed="false">16:10</button>
+                <button type="button" data-format="4:3" aria-pressed="false">4:3</button>
+              </div>
+            </details>
+          </div>
+        </section>
+        <section class="map-section map-layer-section">
+          <div class="map-title"><h2>Capas</h2><button id="mapNewInk" type="button">+ Trazos</button></div>
+          <div id="mapLayers" class="map-layers"></div>
+          <div id="mapLayerControls" hidden>
+            <label class="map-slider">Opacidad <input id="mapOpacity" type="range" min="0" max="100" value="100"><output id="mapOpacityValue" for="mapOpacity">100%</output></label>
+            <div id="mapMasks" class="map-controls" role="group" aria-label="Recorte de la capa">
+              <button type="button" data-mask="rect" aria-pressed="true">Rectángulo</button>
+              <button type="button" data-mask="ellipse" aria-pressed="false">Óvalo</button>
+            </div>
+            <div class="map-controls map-layer-actions">
+              <button id="mapLayerUp" type="button">Subir</button>
+              <button id="mapLayerDown" type="button">Bajar</button>
+              <button id="mapRemoveLayer" type="button">Quitar</button>
+            </div>
+          </div>
+        </section>
+        <section class="map-section map-files" aria-label="Guardar o importar mapa">
+          <button id="mapSave" type="button">Guardar mapa</button>
+          <button id="mapExport" type="button">Descargar</button>
+          <button id="mapImport" type="button">Importar</button>
+        </section>
+      </aside>
+    </main>
+    <input id="mapMediaFile" type="file" accept="image/*,video/*" hidden>
+    <input id="mapPhotoFile" type="file" accept="image/*" hidden>
+    <input id="mapProjectFile" type="file" accept=".fosmap,application/octet-stream" hidden>
+    <script src="src/studio-storage.js"></script>
+    <script src="src/visual-input.js?v=2.4"></script>
+    <script type="module" src="src/mapping.js" onerror="document.getElementById('mapStatus').textContent='No se pudo cargar Mapeo. Abrí Fosfeno por localhost o HTTPS y recargá.'"></script>
+  </body>
+</html>

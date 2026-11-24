@@ -1073,10 +1073,12 @@ body:not(.preview-focus) .output-head { display:none; }
   height:52px; gap:10px; padding-inline:16px;
 }
 #studioNav { display:flex; align-items:stretch; height:100%; min-width:0; padding-left:12px; gap:3px; }
-#studioNav button {
+#studioNav :is(button, a) {
   min-width:0; min-height:0; padding:0 10px; border-radius:0; color:var(--dim);
   border-bottom:2px solid transparent; white-space:nowrap;
 }
+#studioNav a { display:inline-flex; align-items:center; justify-content:center; gap:7px; text-decoration:none; }
+#studioNav a:hover { background:#31372f; color:var(--text); }
 #studioNav button[aria-current=true] {
   border-color:var(--green); color:var(--text); background:#22291d;
 }
@@ -1092,6 +1094,11 @@ body:not(.preview-focus) .output-head { display:none; }
   color:var(--dim); border:1px solid var(--line);
 }
 #studioNav .icon { width:15px; }
+@media (min-width:901px) and (max-width:1080px) {
+  #studioNav { padding-left:8px; }
+  #studioNav :is(button, a) { padding-inline:7px; }
+  #studioNav .icon { display:none; }
+}
 #previewDock { position:relative; margin-left:auto; }
 .output-choice { white-space:nowrap; gap:4px; }
 #outputCompact { display:none; }
@@ -1291,7 +1298,7 @@ body:has(#applySectors:not([hidden])) #run { background:var(--rail); color:var(-
 @media (max-width:900px) {
   .topbar { grid-template-columns:auto minmax(0,1fr) auto; grid-template-rows:44px 44px; height:auto; gap:0 6px; padding-inline:8px; }
   #studioNav { grid-column:1 / -1; grid-row:2; padding-left:0; border-top:1px solid var(--line); }
-  #studioNav button { flex:1; padding-inline:4px; }
+  #studioNav :is(button, a) { flex:1; padding-inline:4px; }
   #previewDock { position:static; }
   #previewDock #outputChoices { top:calc(100% + 3px); inset-inline:8px; max-width:none; width:auto; }
   #focusPreview span { display:none; }
@@ -1301,7 +1308,7 @@ body:has(#applySectors:not([hidden])) #run { background:var(--rail); color:var(-
 }
 @media (max-width:460px) {
   #studioNav .icon { display:none; }
-  #studioNav button { font-size:13px; }
+  #studioNav :is(button, a) { font-size:13px; }
 }
 @media (max-width:980px) {
   #operationTarget { display:none; }
@@ -1329,7 +1336,7 @@ body:has(#applySectors:not([hidden])) #run { background:var(--rail); color:var(-
   #sessionActions:has(#applySectors:not([hidden])) #recordBottom { flex-basis:100%; }
   #project span { display:none; }
   #project { min-width:36px; padding-inline:8px; }
-  #studioNav button { gap:4px; font-size:11px; padding-inline:2px; }
+  #studioNav :is(button, a) { gap:4px; font-size:11px; padding-inline:2px; }
   #studioNav .icon { width:12px; }
   #sessionActions { gap:3px; padding-inline:5px; }
 }

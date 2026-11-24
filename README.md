@@ -4,7 +4,7 @@ Editor de live coding y sintetizador de video con Hydra. El JavaScript del sketc
 
 Al entrar sin un enlace de sketch, Fosfeno genera una pieza con una semilla aleatoria. La semilla aparece en el nombre y en el código. Los borradores se conservan y los enlaces identificados recuperan su pieza. *MULTIVERSE*, de e_e (@eerie_ear), queda en la Biblioteca con el código y la atribución originales. [Abrir el mismo sketch en Hydra](https://hydra.ojack.xyz/?sketch_id=eerie_ear_0) · [Comparación en navegador y límites](docs/paridad-hydra.md)
 
-[Abrir el estudio](https://luzbel33.github.io/fosfeno/abrir.html?v=2.17) · [Abrir Glitch River de Flor de Fuego](https://luzbel33.github.io/fosfeno/abrir.html?v=2.17&sketch_id=flor_2) · [Ver el editor en movimiento](media/fosfeno-demo.mp4)
+[Abrir el estudio](https://luzbel33.github.io/fosfeno/abrir.html?v=2.18) · [Abrir Glitch River de Flor de Fuego](https://luzbel33.github.io/fosfeno/abrir.html?v=2.18&sketch_id=flor_2) · [Ver el editor en movimiento](media/fosfeno-demo.mp4)
 
 ## Tocar una visual
 
@@ -66,6 +66,16 @@ Para usar p5 como entrada, creá `p = new P5()`, dibujá en `p`, conectá `s1.in
 **Proyectar** abre una segunda ventana que contiene únicamente el video de la composición. Movela al proyector y hacé doble clic para ponerla en pantalla completa. La cabina conserva el editor y las guías. En una sola pantalla usá **Imagen → Salida → Pantalla completa**.
 
 **Desconectar cámara** libera la entrada. En **Sectores**, **Quitar del sector** vuelve al sketch y **Desconectar entrada s0** apaga la fuente compartida. Las pinceladas tienen grosor, velocidad y definición final. En el sentido normal, al 100 % llegan a la imagen original. **A la inversa** parte de la imagen original y la simplifica. Con la definición al 0 % termina en dos tonos.
+
+### Mapeo con proyector
+
+**Mapeo** abre una mesa aparte desde localhost o HTTPS. Usá un proyector como pantalla extendida y apuntá una cámara fija hacia la misma pared u objeto plano. Elegí **Abrir proyector**, mové la ventana a esa pantalla y hacé doble clic para mostrarla completa. Seleccioná el formato de salida y tocá **Calibrar** para proyectar cuatro cruces numeradas. Marcá sus centros, en orden, en el video de la cámara o cargá una foto que muestre las cruces. Si movés el equipo, cambiás el encuadre o ajustás el tamaño de la salida, recalibrá.
+
+El **Pincel** dibuja trazos sólidos, de neón o punteados. **+ Foto o video**, **+ Hydra en vivo** y **Mis loops** crean recortes. Arrastrá sobre el lienzo para colocarlos. En **Mover**, agarrá el interior para cambiar la posición o la esquina para cambiar el tamaño. En **Capas** podés cambiar el orden, la opacidad y el recorte de cada medio. **Apagón** deja la salida en negro mientras seguís editando.
+
+**Guardar mapa** recupera esa copia al volver a abrir Mapeo en el mismo navegador. **Descargar** genera un archivo `.fosmap` con los trazos, la calibración y los archivos de las capas incrustados. **Importar** permite abrirlo en otra computadora. La foto de referencia y la cámara quedan en la mesa, sin guardarse en el archivo. Las capas de Hydra toman la salida del estudio abierto. Para reproducir la misma pieza en otra computadora, llevá también su sketch o composición.
+
+La calibración corrige la perspectiva de una superficie plana usando cuatro puntos. Varios recortes pueden ocupar zonas de esa superficie. Cada cara con una profundidad distinta requiere su propia calibración. Este modo tampoco mide profundidad ni sigue objetos que se mueven.
 
 ### Sectores
 

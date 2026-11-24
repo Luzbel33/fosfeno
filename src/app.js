@@ -17,6 +17,7 @@
     keyboard: 'M2 6h20v13H2zM5 10h1m3 0h1m3 0h1m3 0h1M7 15h10',
     close: 'm5 5 14 14M19 5 5 19',
     camera: 'M3 7h12v12H3zM15 11l6-4v12l-6-4z',
+    mapping: 'm4 5 15-2 2 16-17 2zM4 5l17 14M19 3 4 21',
     screen: 'M2 4h20v13H2zM12 17v4m-5 0h10',
     upload: 'M12 16V3m-5 5 5-5 5 5M3 16v5h18v-5',
     mic: 'M9 5a3 3 0 0 1 6 0v7a3 3 0 0 1-6 0zM5 11a7 7 0 0 0 14 0m-7 7v4m-4 0h8',
@@ -60,6 +61,7 @@
     projector = null,
     projectStream = null,
     wakeLock = null
+  let mappingEditor, mappingConnection
   let sceneAge = 0,
     sessionAge = 0,
     last = 0,
@@ -1473,7 +1475,7 @@
   sound.restore()
   if (location.protocol === 'file:') $('offline').textContent = '· Local'
   else if ('serviceWorker' in navigator) {
-    const workerURL = new URL('sw.js?v=2.17', location.href).href
+    const workerURL = new URL('sw.js?v=2.18', location.href).href
     const showOfflineReady = () => {
       if (navigator.serviceWorker.controller?.scriptURL === workerURL)
         $('offline').textContent = '· Disponible sin conexión'
@@ -1529,6 +1531,38 @@
   })
   action($('project'), openOutput)
   action($('fullPanel'), fullscreen)
+  $('openMapping').onclick = (event) => {
+    if (event.ctrlKey || event.metaKey || event.shiftKey || event.altKey) return
+    event.preventDefault()
+    if (location.protocol === 'file:') return notify('Abrí el estudio por localhost o HTTPS para usar Mapeo.')
+    if (mappingEditor && !mappingEditor.closed) return mappingEditor.focus()
+    mappingEditor = window.open('mapeo.html', 'fosfenoMapping')
+    if (!mappingEditor) notify('Permití que Fosfeno abra la pestaña de mapeo.')
+  }
+  window.connectFosfenoMapping = (editor, getOutput) => {
+    if (!canvas.captureStream) throw new Error('Este navegador no puede compartir la salida Hydra en vivo.')
+    mappingConnection?.close()
+    const stream = canvas.captureStream(30)
+    const track = stream.getVideoTracks()[0]
+    const visibility = editor.document
+    const connection = {
+      stream,
+      windows: () => [getOutput(), editor],
+      refresh: restartClock,
+      close() {
+        visibility.removeEventListener('visibilitychange', restartClock)
+        track.stop()
+        if (mappingConnection === connection) {
+          mappingConnection = null
+          restartClock()
+        }
+      }
+    }
+    mappingConnection = connection
+    visibility.addEventListener('visibilitychange', restartClock)
+    restartClock()
+    return connection
+  }
   function openOutput() {
     if (projector && !projector.closed) {
       projector.focus()
@@ -1575,6 +1609,7 @@
   action($('separate'), openOutput)
   window.addEventListener('pagehide', () => {
     projector?.close()
+    mappingConnection?.close()
     room.disconnect()
     sectors.files.forEach(f => f.clear())
     inputs.forEach((input) => {
@@ -1588,10 +1623,10 @@
     if (!document.hidden && (document.fullscreenElement || projector)) holdScreen()
   })
   function scheduleFrame() {
-    frameClock =
-      document.hidden && projector && !projector.closed && !projector.document.hidden
-        ? projector
-        : window
+    const peers = mappingConnection?.windows() || []
+    frameClock = document.hidden
+      ? [projector, ...peers].find(peer => peer && !peer.closed && !peer.document.hidden) || window
+      : window
     frameId = frameClock.requestAnimationFrame(frame)
   }
   function restartClock() {

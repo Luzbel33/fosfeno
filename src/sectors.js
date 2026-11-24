@@ -996,19 +996,7 @@ class SectorDesk {
     root.replaceChildren(...entries)
   }
   async store(mode, action) {
-    const db = await new Promise((resolve,reject) => {
-      const req = indexedDB.open('fosfeno-sectores',1)
-      req.onupgradeneeded = () => req.result.createObjectStore('sesion')
-      req.onsuccess = () => resolve(req.result)
-      req.onerror = () => reject(req.error)
-    })
-    try {
-      return await new Promise((resolve,reject) => {
-        const tx = db.transaction('sesion',mode), req = action(tx.objectStore('sesion'))
-        tx.oncomplete = () => resolve(req.result)
-        tx.onabort = tx.onerror = () => reject(tx.error || new Error('No se pudo acceder a los sectores guardados.'))
-      })
-    } finally { db.close() }
+    return studioStore(mode, action)
   }
   snapshot(includePrincipal = true) {
     const regions = includePrincipal && this.principal.fx.length ? [this.principal,...this.regions] : this.regions
