@@ -1,10 +1,10 @@
-# Fosfeno 3.0.1 · Hydra en vivo
+# Fosfeno 3.0.2 · Hydra en vivo
 
 Editor de live coding y sintetizador de video con Hydra. El JavaScript del sketch genera la imagen base. Los sectores opcionales componen sus efectos encima de esa salida. Podés empezar en blanco, editar una pieza existente o generar un nuevo grafo de señales a partir de una semilla.
 
 Al entrar sin un enlace de sketch, Fosfeno genera una pieza con una semilla aleatoria. La semilla aparece en el nombre y en el código. Los borradores se conservan y los enlaces identificados recuperan su pieza. *MULTIVERSE*, de e_e (@eerie_ear), queda en la Biblioteca con el código y la atribución originales. [Abrir el mismo sketch en Hydra](https://hydra.ojack.xyz/?sketch_id=eerie_ear_0) · [Comparación en navegador y límites](docs/paridad-hydra.md)
 
-[Abrir el estudio](https://luzbel33.github.io/fosfeno/abrir.html?v=3.0.1) · [Abrir Mapeo](https://luzbel33.github.io/fosfeno/abrir.html?v=3.0.1&mode=mapeo) · [Abrir Glitch River de Flor de Fuego](https://luzbel33.github.io/fosfeno/abrir.html?v=3.0.1&sketch_id=flor_2) · [Ver el editor en movimiento](media/fosfeno-demo.mp4)
+[Abrir el estudio](https://luzbel33.github.io/fosfeno/abrir.html?v=3.0.2) · [Abrir Mapeo](https://luzbel33.github.io/fosfeno/abrir.html?v=3.0.2&mode=mapeo) · [Abrir Glitch River de Flor de Fuego](https://luzbel33.github.io/fosfeno/abrir.html?v=3.0.2&sketch_id=flor_2) · [Ver el editor en movimiento](media/fosfeno-demo.mp4)
 
 ## Tocar una visual
 
@@ -55,7 +55,7 @@ Probá seleccionar y ejecutar `pliegues = 9`. Podés usar las cuatro entradas `s
 
 ### Biblioteca e intercambio
 
-La línea **Destino** indica dónde se usará la próxima pieza. **Visuales** permite buscar sketches propios, preinstalados y del catálogo por nombre o autor. **Semillas** reúne el generador y la simetría. **Loops** muestra la colección de videos. **Proyectos** guarda e importa composiciones y operadores.
+La línea **Destino** indica dónde se usará la próxima pieza. **Visuales** permite buscar sketches propios, preinstalados y del catálogo por nombre o autor. En **Semillas**, tocá **Aleatoria** junto al número para sortear otro con la simetría elegida. Después podés aplicarlo al destino o mezclarlo. **Loops** muestra la colección de videos. **Proyectos** guarda e importa composiciones y operadores.
 
 - **Mezclar** alterna un sketch en toda la visual o en el sector seleccionado. El control debajo de la pieza regula su intensidad. Cada mezcla tiene sus propios buffers Hydra, incluido el feedback. Los sectores leen las entradas s0 a s3. Los sketches que abren dispositivos o cargan recursos de manera asíncrona se ejecutan desde el código principal.
 - En **Visuales de la biblioteca** están el `flor_2` original, patches multibuffer, osciladores, geometrías escritas con GLSL y tratamientos para fuentes en vivo.

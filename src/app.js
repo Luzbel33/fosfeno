@@ -1,6 +1,6 @@
 ;(() => {
   'use strict'
-  const edition = '3.0.1'
+  const edition = '3.0.2'
   const blankScore = '// Tu sketch Hydra'
   const $ = (id) => document.getElementById(id)
   const all = (sel, root = document) => Array.from(root.querySelectorAll(sel))
@@ -1601,8 +1601,9 @@
   function seedSketch(seed,symmetry = 'libre') {
     return {id:'seed-'+seed,name:'Semilla '+seed,code:growSketch(seed,symmetry),generator:{seed,fold:symmetry}}
   }
-  function randomSeed() {
-    return crypto.getRandomValues(new Uint32Array(1))[0]
+  function randomSeed(previous) {
+    const roll=crypto.getRandomValues(new Uint32Array(1))[0]
+    return previous!=null && previous!=='' && roll===Number(previous) ? (roll+1)>>>0 : roll
   }
   function seedRecipe(item) {
     const match = item?.code?.match(/^\/\/ Semilla (\d+) · (libre|x|y|radial|ninguna)\r?\n/)
@@ -1700,8 +1701,7 @@
       notify('Usá una semilla entera entre 0 y 4294967295.')
       return
     }
-    let seed = raw ? Number(raw) : randomSeed()
-    if (!raw && String(seed)===$('seed').value.trim()) seed=(seed+1)>>>0
+    const seed = raw ? Number(raw) : randomSeed($('seed').value.trim())
     const scoped = manual && (layerTarget() || (selectedSeedEffect(sectors.principal) && sectors.principal))
     const target = scoped || (manual && (mix || !fromField && baseMode!=='visible') ? sectors.principal : null)
     const item = seedSketch(seed,fold)
@@ -1733,6 +1733,12 @@
   $('grow').onclick = () => $('grow').dataset.assigned === 'true' ? removeStudioBase() : generate(true)
   $('mixSeed').onclick = () => generate(true,true,true)
   $('seed').oninput = refreshSeedMix
+  $('randomizeSeed').onclick = () => {
+    const field=$('seed')
+    field.value=randomSeed(field.value.trim())
+    refreshSeedMix()
+    $('seedRollStatus').textContent='Semilla '+field.value
+  }
   $('explore').onclick = () => generate(false)
   $('editSeed').onclick = openSeedEditor
   $('blank').onclick = () => {

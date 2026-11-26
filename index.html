@@ -7,7 +7,7 @@
     <title>Fosfeno 3.0 — Hydra en vivo</title>
     <link rel="icon" href="assets/mark.svg" />
     <link rel="stylesheet" href="vendor/codemirror/lib/codemirror.css" />
-    <link rel="stylesheet" href="style.css?v=3.0" />
+    <link rel="stylesheet" href="style.css?v=3.0.2" />
     <link rel="stylesheet" href="src/stack.css?v=3.0" />
     <link rel="stylesheet" href="src/music.css?v=3.0" />
   </head>
@@ -181,6 +181,8 @@
           <div class="generator" data-collection="seed" id="shelfSeed" hidden>
             <div class="seedline">
               <label>Semilla<input id="seed" autocomplete="off" inputmode="numeric" placeholder="Aleatoria"></label>
+              <button type="button" id="randomizeSeed" class="outline" title="Sortear otro número conservando la simetría"><i data-icon="shuffle" aria-hidden="true"></i>Aleatoria</button>
+              <output id="seedRollStatus" class="sr-only" aria-live="polite"></output>
             </div>
             <h3>Simetría</h3>
             <div id="symChoices" class="segments">
@@ -552,6 +554,6 @@
     <script src="src/operator-editor.js?v=2.16"></script>
     <script src="src/projector-display.js?v=3.0.1"></script>
     <script src="src/projector-code.js?v=3.0"></script>
-    <script src="src/app.js?v=3.0.1"></script>
+    <script src="src/app.js?v=3.0.2"></script>
   </body>
 </html>

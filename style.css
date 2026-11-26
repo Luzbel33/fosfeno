@@ -1517,7 +1517,7 @@ body:has(#applySectors:not([hidden])) #run { background:var(--rail); color:var(-
 .library-strength { grid-column:1 / -1; }
 #mixSeed[aria-pressed=true] { background:#313e26; }
 .seedline { flex-wrap:wrap; }
-.seedline label { flex:1 0 100%; }
+.seedline label { flex:1 1 7.5rem; }
 .seedline :is(#grow,#mixSeed) { flex:1; border:1px solid var(--line); }
 :is(#newCompositionDialog,#displayDialog) {
   width:min(395px,calc(100% - 24px)); max-height:calc(100% - 24px); padding:20px;
