@@ -134,8 +134,8 @@ async function main() {
     await id('sectorOpacity').fill('50')
     await sample(.4,.4,baseOverFill)
     await click('addSectorLayer')
-    const base = id('sectorLayerList').getByRole('button',{name:'Base',exact:true})
-    const upper = id('sectorLayerList').getByRole('button',{name:'Capa 2',exact:true})
+    const base = id('sector-tree-1').getByRole('button',{name:'Base',exact:true})
+    const upper = id('sector-tree-1').getByRole('button',{name:'Capa 2',exact:true})
     assert.equal(await upper.getAttribute('aria-pressed'),'true')
     await sample(.4,.4,baseOverFill)
 

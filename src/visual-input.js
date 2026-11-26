@@ -226,11 +226,11 @@ class VisualInput {
       throw err
     }
   }
-  async open(kind, { choice, file, params, nativeSize = false, captureAudio = true, receive } = {}) {
+  async open(kind, { choice, file, role, params, nativeSize = false, captureAudio = true, receive } = {}) {
     this.cancel()
     const request = new AbortController()
     const { signal } = request
-    const input = { kind, file, params, nativeSize, captureAudio, receive }
+    const input = { kind, file, role, params, nativeSize, captureAudio, receive }
     this.pending = request
     this.report(
       kind === 'camera'

@@ -1,5 +1,5 @@
 import { formats, identity, pattern, projectionRenderer, projectorToCamera } from './mapping-output.mjs'
-import { blankMap, packMap, unpackMap } from './mapping-project.mjs'
+import { blankMap, packMap, unpackMap } from './mapping-project.mjs?v=2.19'
 
 const $ = id => document.getElementById(id)
 const make = tag => document.createElement(tag)
@@ -7,14 +7,16 @@ const surface = $('mapSurface'), viewport = $('mapViewport'), preview = $('mapPr
 const guide = preview.getContext('2d'), reference = $('mapReference')
 const artwork = make('canvas').getContext('2d'), ink = make('canvas').getContext('2d')
 const targets = make('canvas').getContext('2d')
+const studioPass = make('canvas').getContext('2d'), studioMask = make('canvas').getContext('2d')
 const history = [], future = [], media = new Map()
 const mapKey = ['mapping', 'draft']
 const clamp = (n, lo = 0, hi = 1) => Math.min(hi, Math.max(lo, n))
 let scene = blankMap, matrix = identity, selected = null, tool = 'select', brushLayer = null
 let brushStyle = 'neon', brushColor = '#a9ff50', pending = null, gesture = null
 let projection = null, blackout = false, calibration = null, frozen, lastCamera, lastReference
-let dirty = true, clock = window, frame = 0, lastFrame = 0, active = true, loadRevision = 0
+let dirty = true, clock = window, frame = 0, lastFrame = 0, active = true, loadRevision = 0, previewRevision = 0
 let hydraConnection
+let copiedLayer
 
 function status(message, error = false) {
   $('mapStatus').textContent = message || ''
@@ -30,25 +32,26 @@ function button(label, action) {
 }
 
 function studio() {
-  try { return typeof opener?.connectFosfenoMapping === 'function' ? opener : null }
+  try { return parent !== window && typeof parent.connectFosfenoMapping === 'function' ? parent : null }
   catch { return null }
 }
 const studioWindow = studio()
-if (studioWindow) $('mapStudio').onclick = event => {
-  if (!studioWindow.closed) {
-    event.preventDefault()
-    studioWindow.focus()
-  }
-}
+let sharedReference, sharedAspect
 
 function showReference() {
   const element = frozen || camera.current?.element
-  reference.replaceChildren(...(element ? [element] : []))
+  if (reference.firstChild !== (element || null)) reference.replaceChildren(...(element ? [element] : []))
+  if (element !== sharedReference || scene.aspect !== sharedAspect) {
+    sharedReference = element
+    sharedAspect = scene.aspect
+    studioWindow?.updateFosfenoMapping(element, scene.aspect)
+  }
   $('mapClearReference').hidden = camera.current?.kind !== 'file'
   $('mapFreeze').hidden = camera.current?.kind !== 'camera'
   $('mapFreeze').textContent = frozen ? 'Volver a cámara' : 'Congelar vista'
   $('mapFreeze').setAttribute('aria-pressed', String(!!frozen))
-  $('mapEmpty').hidden = !!element || !!scene.layers.length || tool !== 'select' || !!calibration
+  $('mapEmpty').hidden = !!element || scene.studioMode !== 'off' || !!scene.layers.length ||
+    tool !== 'select' || !!calibration
 }
 
 const camera = new VisualInput(() => {}, input => {
@@ -132,7 +135,7 @@ function sizeCanvases() {
   viewport.style.setProperty('--map-aspect', scene.aspect)
   const w = Math.round(Math.min(1280, 960 * scene.aspect))
   const h = Math.round(w / scene.aspect)
-  for (const { canvas } of [guide, artwork, ink]) {
+  for (const { canvas } of [guide, artwork, ink, studioPass, studioMask]) {
     if (canvas.width === w && canvas.height === h) continue
     canvas.width = w
     canvas.height = h
@@ -163,9 +166,9 @@ function sync() {
     scene.calibration ? 'Calibrado' : 'Sin calibrar · salida directa'
   $('mapState').dataset.aligned = !!scene.calibration && !blackout && !calibration
   $('mapFormatLabel').textContent = scene.format
-  for (const el of document.querySelectorAll('[data-tool],[data-brush],[data-mask],[data-format]')) {
-    const chosen = el.dataset.tool || el.dataset.brush || el.dataset.mask || el.dataset.format
-    el.setAttribute('aria-pressed', String([tool, brushStyle, layer?.mask, scene.format].includes(chosen)))
+  for (const el of document.querySelectorAll('[data-tool],[data-brush],[data-mask],[data-format],[data-hydra]')) {
+    const chosen = el.dataset.tool || el.dataset.brush || el.dataset.mask || el.dataset.format || el.dataset.hydra
+    el.setAttribute('aria-pressed', String([tool, brushStyle, layer?.mask, scene.format, scene.studioMode].includes(chosen)))
   }
   if (calibration) {
     $('mapCalibrateStep').textContent = camera.current ?
@@ -175,6 +178,7 @@ function sync() {
   }
   $('mapLayerControls').hidden = !layer
   $('mapMasks').hidden = layer?.kind === 'ink'
+  $('mapToSector').hidden = !studioWindow || !layer?.rect
   if (layer) {
     const i = scene.layers.indexOf(layer)
     $('mapOpacity').value = Math.round(layer.opacity * 100)
@@ -298,6 +302,7 @@ function openAsset(file) {
   return asset
 }
 function updateSources() {
+  if (!active) return
   const assets = new Set()
   for (const map of [scene, ...history, ...future])
     for (const layer of map.layers) if (layer.file) assets.add(layer.file)
@@ -317,7 +322,8 @@ function updateSources() {
     if (inUse) video.play().catch(errorStatus)
     else if (!visibleAssets.has(file)) video.pause()
   })
-  const useHydra = pending?.kind === 'hydra' || scene.layers.some(layer => layer.kind === 'hydra' && layer.visible)
+  const useHydra = scene.studioMode !== 'off' || pending?.kind === 'hydra' ||
+    scene.layers.some(layer => layer.kind === 'hydra' && layer.visible)
   if (useHydra && studio()) connectHydra()
   else if (!useHydra) disconnectHydra()
 }
@@ -349,7 +355,7 @@ function signalLost() {
   status('Se cerró el estudio. Las capas Hydra esperan una señal en vivo.', true)
 }
 
-async function placeFile(file) {
+async function placeFile(file, mediaRole) {
   if (!file?.size || !/^(image|video)\//.test(file.type)) {
     status('Elegí una imagen o un video que el navegador pueda abrir.', true)
     return
@@ -360,7 +366,7 @@ async function placeFile(file) {
   status('Abriendo «' + file.name + '»…')
   const ready = await asset.ready
   asset.placing = false
-  if (ready && ticket === loadRevision && active) place({ ...nextLayer('file', file.name), file })
+  if (ready && ticket === loadRevision && active) place({ ...nextLayer('file', file.name), file, mediaRole })
   else updateSources()
 }
 function place(layer) {
@@ -572,9 +578,38 @@ function drawMedia(layer, bounds) {
   artwork.drawImage(el, (sw - cw) / 2, (sh - ch) / 2, cw, ch, x, y, dw, dh)
   artwork.restore()
 }
+let maskRegions = [], maskSize = ''
+function drawStudio() {
+  if (scene.studioMode === 'off' || hydraVideo.readyState < 2) return
+  const { width, height } = artwork.canvas
+  if (scene.studioMode === 'full') {
+    artwork.drawImage(hydraVideo, 0, 0, width, height)
+    return
+  }
+  const regions = hydraConnection?.regions() || []
+  if (!regions.length) return
+  const size = width + 'x' + height
+  if (maskSize !== size || maskRegions.length !== regions.length || regions.some((points, i) => points !== maskRegions[i])) {
+    studioMask.clearRect(0, 0, width, height)
+    for (const points of regions) {
+      studioMask.beginPath()
+      points.forEach(([x,y], i) => i ? studioMask.lineTo(x*width,y*height) : studioMask.moveTo(x*width,y*height))
+      studioMask.fill('evenodd')
+    }
+    maskSize = size
+    maskRegions = regions
+  }
+  studioPass.clearRect(0, 0, width, height)
+  studioPass.drawImage(hydraVideo, 0, 0, width, height)
+  studioPass.globalCompositeOperation = 'destination-in'
+  studioPass.drawImage(studioMask.canvas, 0, 0)
+  studioPass.globalCompositeOperation = 'source-over'
+  artwork.drawImage(studioPass.canvas, 0, 0)
+}
 function drawScene() {
   const { width, height } = artwork.canvas
   artwork.clearRect(0, 0, width, height)
+  drawStudio()
   const stroke = gesture?.kind === 'brush' ? gesture.stroke : null
   for (const id of inkCache.keys()) {
     if (!scene.layers.some(layer => layer.id === id)) inkCache.delete(id)
@@ -616,7 +651,7 @@ function drawPreview() {
   guide.fillRect(x + w - grip, y + h - grip, grip * 2, grip * 2)
 }
 function dynamic() {
-  return scene.layers.some(layer => layer.visible && (layer.kind === 'hydra' && hydraConnection ||
+  return (scene.studioMode !== 'off' && !!hydraConnection) || scene.layers.some(layer => layer.visible && (layer.kind === 'hydra' && hydraConnection ||
     media.get(layer.file)?.input.current?.element instanceof HTMLVideoElement))
 }
 function render(now) {
@@ -626,7 +661,7 @@ function render(now) {
   if (hydraConnection && !studio()) signalLost()
   if (dirty || (!calibration && dynamic() && now - lastFrame >= 1000 / 30)) {
     lastFrame = now
-    if (!calibration) drawScene()
+    if (!calibration) { drawScene(); previewRevision++ }
     drawPreview()
     if (projection) {
       try {
@@ -643,7 +678,7 @@ function render(now) {
 function schedule() {
   if (!active || frame) return
   const output = projection?.window
-  clock = document.hidden && output && !output.closed && !output.document.hidden ? output : window
+  clock = document.hidden && output && !output.closed && !output.document.hidden ? output : studioWindow || window
   frame = clock.requestAnimationFrame(render)
 }
 function restartClock() {
@@ -656,7 +691,7 @@ function restartClock() {
 document.addEventListener('visibilitychange', restartClock)
 
 function openProjection() {
-  if (projection && !projection.window.closed) return projection.window.focus()
+  if (projection && !projection.window.closed) { projection.window.focus(); return true }
   const output = window.open('', '_blank', 'popup,width=1000,height=620')
   if (!output) return status('Permití la ventana emergente para abrir el proyector.', true)
   try {
@@ -687,6 +722,7 @@ function openProjection() {
     sync()
     restartClock()
     status('Mové la ventana al proyector y hacé doble clic ahí para entrar en pantalla completa.')
+    return true
   } catch (error) {
     output.close()
     errorStatus(error)
@@ -734,44 +770,54 @@ filePicker('mapReferenceFile', 'mapPhotoFile', file => {
   return camera.open('file', { file }).catch(() => {})
 })
 let mapTransfer = false
-filePicker('mapImport', 'mapProjectFile', async file => {
+async function openMap(file) {
+  const next = await unpackMap(file)
+  if (next.studio && studioWindow) await studioWindow.restoreFosfenoMapping(next.studio)
+  if (calibration) endCalibration()
+  camera.clear()
+  lastCamera = lastReference = null
+  setTool('select', false)
+  selected = null
+  apply(next)
+}
+function packCurrent() {
+  return packMap({ ...scene, studio: studioWindow?.captureFosfenoMapping() || scene.studio })
+}
+async function transfer(action) {
   if (mapTransfer) return
   mapTransfer = true
-  $('mapImport').disabled = $('mapSave').disabled = true
+  const buttons = ['mapImport', 'mapSave', 'mapRestore', 'mapExport'].map($)
+  buttons.forEach(control => { control.disabled = true })
   try {
-    const next = await unpackMap(file)
-    if (calibration) endCalibration()
-    camera.clear()
-    lastCamera = lastReference = null
-    setTool('select', false)
-    selected = null
-    apply(next)
-    status('Mapa abierto. Guardá el mapa si querés recuperarlo al volver.')
+    await action()
+  } catch (error) {
+    errorStatus(error)
   } finally {
     mapTransfer = false
-    $('mapImport').disabled = $('mapSave').disabled = false
-  }
-})
-$('mapSave').onclick = async () => {
-  if (mapTransfer) return
-  mapTransfer = true
-  $('mapSave').disabled = $('mapImport').disabled = true
-  try {
-    await studioStore('readwrite', store => store.put(packMap(scene), mapKey))
-    status('Mapa guardado en este navegador.')
-  } catch (error) { errorStatus(error) }
-  finally {
-    mapTransfer = false
-    $('mapSave').disabled = $('mapImport').disabled = false
+    buttons.forEach(control => { control.disabled = false })
   }
 }
-$('mapExport').onclick = () => {
-  const url = URL.createObjectURL(packMap(scene)), link = make('a')
+filePicker('mapImport', 'mapProjectFile', file => transfer(async () => {
+  await openMap(file)
+  status('Mapa importado. Guardalo si querés actualizar la copia de este navegador.')
+}))
+$('mapSave').onclick = () => transfer(async () => {
+  await studioStore('readwrite', store => store.put(packCurrent(), mapKey))
+  status('Mapa y sectores guardados en este navegador.')
+})
+$('mapRestore').onclick = () => transfer(async () => {
+  const saved = await studioStore('readonly', store => store.get(mapKey))
+  if (!saved) return status('Todavía no guardaste un mapa.')
+  await openMap(saved)
+  status('Mapa y sectores recuperados.')
+})
+$('mapExport').onclick = () => transfer(() => {
+  const url = URL.createObjectURL(packCurrent()), link = make('a')
   link.href = url
   link.download = 'Fosfeno-mapa.fosmap'
   link.click()
   setTimeout(() => URL.revokeObjectURL(url), 30000)
-}
+})
 
 const loopList = $('mapLoopList')
 function toggleLoops(open) {
@@ -790,7 +836,7 @@ $('mapLoops').onclick = async () => {
       try {
         const file = await studioStore('readonly', store => store.get(key))
         if (!file) throw new Error('Este loop ya no está en la biblioteca.')
-        await placeFile(file)
+        await placeFile(file, 'loop')
       } catch (error) { errorStatus(error) }
     }))
     if (!rows.length) {
@@ -814,10 +860,6 @@ function chooseBrush(newLayer = false) {
   selected = brushLayer
   setTool('brush')
   status('Arrastrá o tocá la superficie para pintar.')
-}
-$('mapAddHydra').onclick = () => {
-  if (!studio()) return status('Abrí Mapeo desde el Estudio Hydra para usar su señal en vivo.', true)
-  place(nextLayer('hydra', 'Hydra en vivo'))
 }
 $('mapStartBrush').onclick = () => chooseBrush()
 $('mapNewInk').onclick = () => chooseBrush(true)
@@ -848,6 +890,16 @@ $('mapRedo').onclick = () => step(false)
 $('mapRemoveLayer').onclick = () => apply({ ...scene, layers: scene.layers.filter(layer => layer.id !== selected) })
 $('mapLayerUp').onclick = () => reorder(1)
 $('mapLayerDown').onclick = () => reorder(-1)
+$('mapToSector').onclick = async () => {
+  const layer = activeLayer()
+  if (!layer?.rect) return
+  $('mapToSector').disabled = true
+  try {
+    await studioWindow.moveFosfenoMappingLayer(layer)
+    apply({ ...scene, studioMode: 'sectors', layers: scene.layers.filter(item => item !== layer) })
+  } catch (error) { errorStatus(error) }
+  finally { $('mapToSector').disabled = false }
+}
 let opacityStart
 $('mapOpacity').oninput = event => {
   const layer = activeLayer()
@@ -866,8 +918,8 @@ $('mapOpacity').onchange = () => {
   apply(next)
 }
 
-for (const el of document.querySelectorAll('[data-tool],[data-brush],[data-color],[data-mask],[data-format]')) el.onclick = () => {
-  const { tool: next, brush, color, mask, format } = el.dataset
+for (const el of document.querySelectorAll('[data-tool],[data-brush],[data-color],[data-mask],[data-format],[data-hydra]')) el.onclick = () => {
+  const { tool: next, brush, color, mask, format, hydra } = el.dataset
   if (next === 'brush') chooseBrush()
   else if (next) {
     if (calibration) endCalibration()
@@ -879,7 +931,8 @@ for (const el of document.querySelectorAll('[data-tool],[data-brush],[data-color
   } else if (color) {
     brushColor = $('mapBrushColor').value = color
     $('mapBrushColor').setAttribute('aria-invalid', 'false')
-  } else if (mask && activeLayer()) editLayer(activeLayer(), { mask })
+  } else if (hydra && hydra !== scene.studioMode) apply({ ...scene, studioMode: hydra })
+  else if (mask && activeLayer()) editLayer(activeLayer(), { mask })
   else if (format) {
     $('mapFormatChoice').open = false
     if (format === scene.format) return
@@ -898,14 +951,30 @@ document.addEventListener('keydown', event => {
       menu.querySelector('summary').focus()
     }
   }
-  if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'z' &&
-      !event.target.matches('input,textarea')) {
+  if (!(event.ctrlKey || event.metaKey) || event.altKey || event.repeat || calibration ||
+      event.target.closest('input:not([type=range]),textarea,[contenteditable]') ||
+      window.getSelection()?.isCollapsed === false) return
+  const key = event.key.toLowerCase()
+  if (key === 'z' || key === 'y') {
     event.preventDefault()
-    step(!event.shiftKey)
+    step(key==='z' && !event.shiftKey)
+  } else if (key==='c' && activeLayer()) {
+    event.preventDefault()
+    copiedLayer=activeLayer()
+    status('Capa copiada.')
+  } else if (key==='v' && copiedLayer) {
+    event.preventDefault()
+    const layer={...copiedLayer,id:nextLayer(copiedLayer.kind,copiedLayer.name).id,name:copiedLayer.name+' · copia'}
+    if (layer.rect) {
+      const [x,y,w,h]=layer.rect
+      layer.rect=[clamp(x+.025,0,1-w),clamp(y+.025,0,1-h),w,h]
+    }
+    addLayer(layer)
+    status('Capa pegada.')
   }
 })
 
-window.addEventListener('pagehide', () => {
+function deactivate() {
   active = false
   if (!clock.closed) clock.cancelAnimationFrame(frame)
   frame = 0
@@ -914,23 +983,28 @@ window.addEventListener('pagehide', () => {
   camera.clear()
   for (const { input } of media.values()) input.clear()
   media.clear()
-})
-window.addEventListener('pageshow', event => {
-  if (!event.persisted) return
+}
+function activate() {
+  if (active) return
   active = true
   updateSources()
   sync()
   restartClock()
-})
+}
+window.fosfenoMapping = { activate, deactivate, openProjection,
+  preview: () => ({canvas:artwork.canvas, frame:scene.studioMode==='full' && !blackout && hydraVideo.readyState<2 ? 0 : previewRevision, blackout}) }
+window.addEventListener('pagehide', deactivate)
+window.addEventListener('pageshow', event => { if (event.persisted) activate() })
 sizeCanvases()
 sync()
+updateSources()
 schedule()
 const initial = scene
 studioStore('readonly', store => store.get(mapKey)).then(async blob => {
   if (!blob) return
   const saved = await unpackMap(blob)
-  if (scene !== initial || !active) return
+  if (scene !== initial) return
   assign(saved)
-  status(saved.layers.some(layer => layer.kind === 'hydra') && !studio() ?
-    'Mapa recuperado. Abrí Mapeo desde el Estudio para recuperar la señal Hydra.' : 'Mapa recuperado.')
+  status(saved.studio ? 'Superficie recuperada. Usá Recuperar mapa para cargar también el código y los sectores guardados.' :
+    'Superficie recuperada.')
 }).catch(errorStatus)

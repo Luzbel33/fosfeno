@@ -2,7 +2,7 @@
 <html lang="es">
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Abrir Fosfeno 2.18</title>
+    <title>Abrir Fosfeno 2.19</title>
   <body>
     <p id="estado" role="status">Abriendo Fosfeno…</p>
     <a id="continuar" href="./" hidden>Continuar al estudio</a>
@@ -15,7 +15,7 @@
 
       async function abrir() {
         const workers = navigator.serviceWorker
-        const actual = new URL('sw.js?v=2.18', location.href).href
+        const actual = new URL('sw.js?v=2.19', location.href).href
         // Older workers serve their cached index for every query string on the home URL.
         if (workers?.controller && workers.controller.scriptURL !== actual) {
           await workers.register(actual, {updateViaCache:'none'})

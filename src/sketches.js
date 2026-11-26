@@ -362,8 +362,12 @@ function growSketch(seed, symmetry = 'libre') {
   if (fold === 'radial') lines.push('  .kaleid(' + int(3, 10) + ')')
   lines.push('  .out(o2)', '', 'src(o2)')
   lines.push('  .' + pick(['sub', 'mult', 'add']) + '(' + source() + ', ' + num(0.24, 0.69) + ')')
+  const tint = pick([[1.25, .59, .85], [.58, .94, 1.28], [1.3, .98, .48], [.82, .62, 1.28], [.8, 1.22, .72]])
+  const hue = num(-.5, .5), drift = num(.008, .034) * pick([-1, 1])
   lines.push(
-    '  .color(' + num(0.7, 1.4) + ', ' + num(0.65, 1.22) + ', ' + num(0.75, 1.35) + ')',
+    '  .color(' + tint.join(', ') + ')',
+    '  .hue(() => ' + hue + ' + time * (' + drift + '))',
+    '  .rotate(0, ' + num(.02, .066) * pick([-1, 1]) + ')',
     '  .scale(() => 1 + a.fft[0] * ' + num(0.035, 0.15) + ')',
     '  .blend(src(o0).scale(' +
       num(1.004, 1.029) +

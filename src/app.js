@@ -14,6 +14,7 @@
     bolt: 'm13 2-8 12h6l-1 8 9-13h-6z',
     shuffle: 'M3 6h3c5 0 7 12 12 12h3m-4-4 4 4-4 4M3 18h3c2 0 3-1 5-4m2-5c2-3 3-3 5-3h3m-4-4 4 4-4 4',
     grid: 'M3 3h7v7H3zM14 3h7v7h-7zM3 14h7v7H3zM14 14h7v7h-7z',
+    chevron: 'm9 5 7 7-7 7',
     keyboard: 'M2 6h20v13H2zM5 10h1m3 0h1m3 0h1m3 0h1M7 15h10',
     close: 'm5 5 14 14M19 5 5 19',
     camera: 'M3 7h12v12H3zM15 11l6-4v12l-6-4z',
@@ -61,7 +62,8 @@
     projector = null,
     projectStream = null,
     wakeLock = null
-  let mappingEditor, mappingConnection
+  let mappingConnection, mappingMode = false, mappingBench = false, mappingReference, mappingAspect
+  let drawMappingReference = true, mappingPreviewFrame
   let sceneAge = 0,
     sessionAge = 0,
     last = 0,
@@ -196,6 +198,11 @@
       }
     }
   })
+  sectors.history = new SectorHistory(sectors, {
+    active: () => !mappingBench && !document.querySelector('dialog[open]') &&
+      (view==='sectors' || !!document.activeElement?.closest('#layerDesk,#stage')),
+    notify
+  })
   function setLayerScope(region) {
     const layer = region ? sectors.content(region) : null
     const changed = scopeId !== (region?.id ?? null) || scopeLayer !== layer
@@ -307,34 +314,98 @@
     refreshApply()
     refreshLayerOverview()
   }
+  const layerTreeOpen = new Map()
+  let layerDrag
+  function selectSectorLayer(id, layerId, action, effectIndex) {
+    const region = sectors.regions.find(item => item.id === id)
+    sectors.id = id || null
+    if (region && layerId != null) sectors.layerSelection.set(region,layerId)
+    if (sectors.mode || sectors.drag) sectors.note('')
+    sectors.mode=null
+    sectors.cancelDrag()
+    sectors.panel(null)
+    if (!layout.layersVisible) showLayers(true)
+    changeView('sectors')
+    sectors.refresh()
+    if (action === 'source') {
+      if (id) {
+        sectors.panel('sectorMedia',true)
+        $('sectorFileButton').focus({preventScroll:true})
+      } else openPanel('input')
+    } else if (action === 'code') {
+      if (id) {
+        sectors.panel('layerCode',true)
+        $('sectorCode').focus({preventScroll:true})
+      } else {
+        changeView('code')
+        if ($('operatorInspector').hidden) showCodeInspector(true)
+      }
+    } else if (action === 'effect') {
+      const effect = $('sectorControls').querySelector('[data-effect-index="'+effectIndex+'"]')
+      effect?.querySelector('input')?.focus({preventScroll:true})
+      effect?.scrollIntoView({block:'nearest'})
+      return
+    }
+    if (action) $('sectorDetail').scrollIntoView({block:'nearest'})
+  }
+  function describeLayer(layer, applied, region) {
+    const rendered = sectors.appliedLayer(layer)
+    const parent = layer.groupId && sectorLayers(applied || region).find(item=>item.layerId===layer.groupId)
+    const visible = applied && !!(applied.visible && !rendered?.hidden && !parent?.hidden)
+    const input = !region.id || layer.source==='s0' ? inputs[0].current :
+      layer.source==='file' ? layer.file?.current : null
+    let source = ''
+    if (input?.file) source = (input.role==='loop' ? 'Loop · ' : input.file.type.startsWith('video/') ? 'Video en loop · ' : 'Imagen · ') + input.file.name
+    else if (input) source = input.kind==='camera' ? 'Cámara · s0' : 'Señal · s0'
+    else if (layer.source==='s0') source = 's0 · sin señal'
+    else if (region.id && layer.source==='sketch') source = 'Sketch'
+    const sourcePending = !!(region.id && input && (!rendered || rendered.source!==layer.source ||
+      (layer.source==='file' && rendered.file!==layer.file)))
+    const effects = layer.fx.map((fx,index)=>({name:fx.name, enabled:fx.enabled!==false,
+      ...sectorEffectStatus(fx,index,rendered,visible)}))
+    for (const fx of rendered?.fx || []) if (visible && fx.enabled!==false && !layer.fx.includes(fx[effectOrigin]))
+      effects.push({name:fx.name, state:'En salida hasta aplicar', playing:true})
+    return {layerId:sectorLayerId(layer),name:sectorLayerLabel(layer),groupId:layer.groupId,
+      group:layer.source==='group', hidden:!!layer.hidden, source, sourcePending, code:!!layer.code, paint:layer.paint, effects,
+      selected: layer===sectors.target(), mark:sectors.groupSelection.has(layer)}
+  }
   function refreshLayerOverview() {
     const root=$('layerOverview')
     const detail=$('sectorDetail')
     const layers=[sectors.principal,...[...sectors.regions].reverse()]
     const rows=layers.map(layer=>{
       const applied=sectors.applied.find(r=>r.id===layer.id)
-      const count=applied?.visible ? sectorLayers(applied).flatMap(layer=>layer.fx).filter(f=>f.enabled!==false).length : 0
+      const entries = sectorLayers(layer).map(item=>describeLayer(item,applied,layer))
+      const count=entries.flatMap(entry=>entry.effects).filter(effect=>effect.playing).length
       const status=layer.id && !applied ? 'Pendiente' : applied?.visible===false ? 'Oculto' :
         count ? count+(count===1?' efecto':' efectos') : ''
-      return {id:layer.id,name:sectorLabel(layer),visible:layer.visible,status}
+      const hasTree = !!layer.id || entries.some(item=>item.source || item.effects.length || item.paint)
+      const open = sectors.groupFor===layer.id || (layerTreeOpen.get(layer.id) ??
+        (entries.length>1 || entries.some(item=>item.source && item.source!=='Sketch' || item.effects.length)))
+      return {id:layer.id,name:sectorLabel(layer),visible:layer.visible,status,entries,hasTree,open,
+        grouping:sectors.groupFor===layer.id}
     })
-    const key=JSON.stringify([rows,scopeId])
+    const key=JSON.stringify([rows,scopeId,sectorLayerId(sectors.target())])
     if (root.dataset.state===key) return
     root.dataset.state=key
     const existing = new Map(Array.from(root.querySelectorAll(':scope > .layer-overview-row'), row => [row.dataset.sectorId,row]))
     const ordered = []
     const selectedId = scopeId ?? 0
     detail.dataset.selection = selectedId
+    $('layerSelectionCaption').textContent = selectedId ? sectorLabel(sectors.selected()) + ' · ' + sectorLayerLabel(sectors.target()) : 'Toda la visual'
     for (const row of rows) {
       const line = existing.get(String(row.id)) || makeSectorRow(row.id)
-      const [select,visibility] = line.children
+      const [select,toggle,visibility,tree] = line.children
       const [name,status] = select.children
       const selected = row.id === selectedId
       name.textContent = row.name
       status.textContent = row.status
       select.setAttribute('aria-label',row.name)
       select.setAttribute('aria-pressed',selected)
-      if (visibility) {
+      toggle.hidden = !row.hasTree
+      toggle.setAttribute('aria-expanded',String(row.open))
+      toggle.setAttribute('aria-label',(row.open?'Plegar capas de ':'Ver capas de ')+row.name)
+      if (row.id) {
         const label=(row.visible?'Ocultar ':'Mostrar ')+row.name
         visibility.setAttribute('aria-label',label)
         visibility.title=label
@@ -343,10 +414,10 @@
           visibility.innerHTML=icon(row.visible?'eye':'eyeOff')
         }
       }
+      tree.hidden = !row.hasTree || !row.open
+      if (!tree.hidden) renderLayerTree(tree,row)
       ordered.push(line)
-      if (selected) ordered.push(detail)
     }
-    // Keep the selected editor and its focused inputs mounted when a row's status changes.
     let cursor = root.firstElementChild
     for (const node of ordered) {
       if (node===cursor) cursor = cursor.nextElementSibling
@@ -366,29 +437,153 @@
     line.dataset.sectorId=id
     select.className='layer-select'
     select.setAttribute('aria-controls','sectorDetail')
-    select.onclick=()=>{
-      sectors.id=id || null
-      if (sectors.mode || sectors.drag) sectors.note('')
-      sectors.mode=null
-      sectors.cancelDrag()
-      sectors.panel(null)
-      if (!layout.wide.matches) changeView('sectors')
-      sectors.refresh()
-      $('addSectorEffect').scrollIntoView({block:'nearest'})
+    select.onclick=()=>selectSectorLayer(id,undefined,'select')
+    select.ondragover=event=>{
+      if (layerDrag?.region===id) event.preventDefault()
+    }
+    select.ondrop=event=>{
+      if (layerDrag?.region!==id) return
+      event.preventDefault()
+      const region=sectors.regions.find(item=>item.id===id)
+      const layer=region && sectorLayers(region).find(item=>sectorLayerId(item)===layerDrag.layer)
+      if (layer) sectors.placeLayer(region,layer,null)
+      layerDrag=null
     }
     status.className='layer-count'
     select.append(name,status)
-    line.append(select)
-    if (id) {
-      const visibility=document.createElement('button')
-      visibility.className='layer-visibility'
-      visibility.onclick=()=>{
-        const layer=sectors.regions.find(region=>region.id===id)
-        if (layer) { layer.visible=!layer.visible; sectors.changed() }
-      }
-      line.append(visibility)
+    const toggle=document.createElement('button'), visibility=document.createElement('button'), tree=document.createElement('div')
+    toggle.className='layer-tree-toggle'
+    toggle.innerHTML=icon('chevron')
+    tree.className='layer-tree'
+    tree.id='sector-tree-'+id
+    toggle.setAttribute('aria-controls',tree.id)
+    toggle.onclick=()=>{
+      layerTreeOpen.set(id,toggle.getAttribute('aria-expanded')!=='true')
+      refreshLayerOverview()
     }
+    visibility.hidden=!id
+    visibility.className='layer-visibility'
+    visibility.onclick=()=>{
+      const layer=sectors.regions.find(region=>region.id===id)
+      if (layer) { layer.visible=!layer.visible; sectors.changed() }
+    }
+    line.append(select,toggle,visibility,tree)
     return line
+  }
+  function renderLayerTree(tree,row) {
+    const key = JSON.stringify([row.entries,row.grouping])
+    if (tree.dataset.state===key) return
+    tree.dataset.state=key
+    const focus = document.activeElement?.dataset.treeAction
+    const button = (entry, kind, label, action, a11y) => {
+      const b=document.createElement('button')
+      b.type='button'
+      b.className='layer-tree-'+kind
+      b.textContent=label
+      b.dataset.treeAction=entry.layerId+'-'+kind+'-'+(a11y || label)
+      if (a11y) { b.setAttribute('aria-label',a11y); b.title=a11y }
+      b.onclick=action
+      return b
+    }
+    const getLayer = key => sectorLayers(sectors.regions.find(item=>item.id===row.id) || sectors.principal)
+      .find(item=>sectorLayerId(item)===key)
+    const render = entry => {
+      const {layerId,name,group,hidden,source,code,paint,effects} = entry
+      const item = document.createElement('div'), head = document.createElement('div'), signals = document.createElement('div')
+      item.className='layer-tree-item'
+      item.dataset.selected=entry.selected
+      item.dataset.layerId=layerId
+      head.className='layer-tree-head'
+      signals.className='layer-tree-signals'
+      const choose=button(entry,'name',row.id ? name : 'Composición',()=>selectSectorLayer(row.id,layerId,'select'))
+      choose.setAttribute('aria-pressed',String(entry.selected))
+      if (row.id) {
+        choose.draggable=true
+        choose.title='Seleccionar o arrastrar '+name
+        choose.ondragstart=event=>{
+          layerDrag={region:row.id,layer:layerId}
+          event.dataTransfer.effectAllowed='move'
+          event.dataTransfer.setData('text/plain',name)
+        }
+        choose.ondragend=()=>{layerDrag=null}
+        head.ondragover=event=>{
+          if (layerDrag?.region===row.id && layerDrag.layer!==layerId) {
+            event.preventDefault()
+            head.dataset.drop='true'
+          }
+        }
+        head.ondragleave=()=>{delete head.dataset.drop}
+        head.ondrop=event=>{
+          if (layerDrag?.region!==row.id || layerDrag.layer===layerId) return
+          event.preventDefault()
+          delete head.dataset.drop
+          const source=getLayer(layerDrag.layer), target=getLayer(layerId)
+          const rect=head.getBoundingClientRect()
+          if (source && target) sectors.placeLayer(sectors.regions.find(item=>item.id===row.id),source,target,event.clientY < rect.y+rect.height/2)
+          layerDrag=null
+        }
+      }
+      head.append(choose)
+      if (row.grouping && !entry.groupId && !group) {
+        const mark=button(entry,'mark',entry.mark?'✓':'□',()=>sectors.toggleGroupMember(getLayer(layerId)),'Marcar '+name)
+        mark.setAttribute('aria-pressed',String(entry.mark))
+        head.append(mark)
+      }
+      if (row.id) {
+        const visibility=button(entry,'eye','',()=>{
+          const layer=getLayer(layerId)
+          layer.hidden=!layer.hidden
+          sectors.changed()
+        },(hidden?'Mostrar capa ':'Ocultar capa ')+name)
+        visibility.innerHTML=icon(hidden?'eyeOff':'eye')
+        head.append(visibility)
+      }
+      if (source) {
+        const label=entry.sourcePending ? source+' · pendiente' : source
+        const sourceButton=button(entry,'source',label,()=>selectSectorLayer(row.id,layerId,'source'))
+        sourceButton.title=label
+        signals.append(sourceButton)
+      }
+      if (code || !row.id) signals.append(button(entry,'source','Código Hydra',()=>selectSectorLayer(row.id,layerId,'code')))
+      if (paint) signals.append(button(entry,'source','Pinceladas',()=>selectSectorLayer(row.id,layerId,'source')))
+      for (const [i,effect] of effects.entries()) {
+        const line=document.createElement('div')
+        line.className='layer-tree-effect'
+        line.dataset.playing=effect.playing
+        const label=button(entry,'effect-name',effect.name,()=>selectSectorLayer(row.id,layerId,'effect',i),
+          'Editar '+effect.name+' en '+name+' · '+effect.state)
+        label.dataset.treeAction=layerId+'-effect-'+i
+        line.append(label)
+        if (effect.state==='Cambio pendiente' || effect.state==='Pendiente') {
+          const state=document.createElement('span')
+          state.className='layer-tree-state'
+          state.textContent='Pend.'
+          state.title=effect.state
+          line.append(state)
+        }
+        if (effect.enabled!==undefined) {
+          const power=button(entry,'power',effect.enabled?'●':'○',()=>{
+            const fx=getLayer(layerId)?.fx[i]
+            if (fx) { fx.enabled=fx.enabled===false; sectors.changed() }
+          },(effect.enabled?'Pausar ':'Activar ')+effect.name+' en '+name+' · '+effect.state)
+          power.dataset.treeAction=layerId+'-power-'+i
+          power.setAttribute('aria-pressed',String(effect.enabled))
+          line.append(power)
+        }
+        signals.append(line)
+      }
+      item.append(head)
+      if (signals.children.length) item.append(signals)
+      if (group) {
+        const children = document.createElement('div')
+        children.className='layer-tree-children'
+        children.append(...row.entries.slice().reverse().filter(child=>child.groupId===layerId).map(render))
+        item.append(children)
+      }
+      return item
+    }
+    tree.replaceChildren(...row.entries.slice().reverse().filter(entry=>!entry.groupId).map(render))
+    if (focus) Array.from(tree.querySelectorAll('[data-tree-action]')).find(button=>button.dataset.treeAction===focus)?.focus({preventScroll:true})
   }
   function changeView(next, openTools = true) {
     view=next
@@ -542,7 +737,7 @@
   function restoreEditor(reference, play, fallback) {
     const recovered = stored('draft', null)
     const sameEntry = recovered?.historyEntry && recovered.historyEntry === history.state?.fosfenoEntry
-    if (typeof recovered?.code === 'string' && (!reference || sameEntry)) {
+    if (typeof recovered?.code === 'string' && recovered.code.trim() && (!reference || sameEntry)) {
       load(recovered, false, false)
       modified = true
       armed = recovered.autoEdit === true
@@ -554,7 +749,7 @@
       setText(current.code)
       $('scoreName').value = current.name
       if (current.generator) $('seed').value=current.generator.seed
-      status('Sketch en salida.')
+      status('Preparando salida…')
     }
     changeView('sectors', false)
   }
@@ -1162,13 +1357,14 @@
   )
   selectButtons('[data-q]', 'q', 'auto')
 
-  const creations = new CompositionLibrary({sectors, notify, capture() {
+  function captureComposition() {
     const {painting,brush,brushSpeed,brushDetail,brushInverse,internalPulse,sensitivity,quality} = state
     return {name:$('scoreName').value.trim() || 'Sin título',code:cm.getValue(),regions:sectors.snapshot(),selectedSector:sectors.id,
-      input:inputs[0].current?.file, inputKind:inputs[0].current?.kind || null,
+      input:inputs[0].current?.file, inputRole:inputs[0].current?.role, inputKind:inputs[0].current?.kind || null,
       settings:{painting,brush,brushSpeed,brushDetail,brushInverse,internalPulse,sensitivity,quality,resolution:state.sketchResolution || null,bpm:window.bpm,output:engine.output,
         autoMix:$('autoMixInput').getAttribute('aria-pressed') === 'true',fold,seed:$('seed').value}}
-  }, async activate(project) {
+  }
+  const creations = new CompositionLibrary({sectors, notify, capture: captureComposition, async activate(project) {
     if (project.kind === 'operator') {
       const target = layerTarget()
       if (target) {
@@ -1195,7 +1391,7 @@
     }
     const version = revision, originalInput = inputs[0].current
     const next = await sectors.prepare(project.regions)
-    let medium = project.input ? {kind:'file',file:project.input} : null
+    let medium = project.input ? {kind:'file',file:project.input,role:project.inputRole} : null
     let installed = false
     try {
       if (medium) await prepareVisual(medium,null,medium.file,new AbortController().signal)
@@ -1229,6 +1425,7 @@
       sectors.install(next,project.selectedSector); sectors.apply(); installed = true
       resize(); refreshMix()
       notify('Composición en salida · '+project.name)
+      return true
     } finally {
       if (medium) releaseVisual(medium)
       if (!installed) next.flatMap(sectorLayers).forEach(layer=>layer.file?.clear())
@@ -1244,19 +1441,24 @@
     destination:layerTarget,
     source:()=>{
       const target=sectorTarget()
-      return target ? {...sectors.captureSource(target),name:target.shape+' '+target.id} : {canvas,name:'Salida'}
+      if (target) return {...sectors.captureSource(target),name:sectorLabel(target)}
+      const mapped = mappingMode && mappingDesk()?.preview()
+      return mapped?.frame ? {canvas:mapped.canvas,name:'Mapeo'} : {canvas,name:'Salida'}
     },
     use:async (file,target)=>{
       if (target) {
-        if (!sectors.containsLayer(target) || !await sectors.setFile(target,file)) return
-        if (target!==layerTarget()) return
-        if (layout.wide.matches) showLayers(true)
-        changeView('sectors')
-        sectors.panel('sectorMedia',true)
-        $('sectorFileButton').focus()
-      } else if (await inputs[0].open('file',{file})) {
+        if (!sectors.containsLayer(target)) return
+        const assigned = await sectors.setFile(target,file,'loop')
+        if (!assigned) return
+        const region = sectors.regions.find(item=>sectorLayers(item).includes(assigned))
+        const show = () => selectSectorLayer(region.id,sectorLayerId(assigned),'source')
+        if (target===layerTarget() || assigned===layerTarget()) show()
+        notify('Loop cargado en '+sectorLabel(region)+' · '+sectorLayerLabel(assigned)+'.',{label:'Ver capa',run:show})
+      } else if (await inputs[0].open('file',{file,role:'loop'})) {
         mixInput()
         if (!layerTarget()) openPanel('input')
+        refreshLayerOverview()
+        notify('Loop cargado en la entrada de toda la visual.',{label:'Ver entrada',run:()=>selectSectorLayer(0,0,'source')})
       }
     }
   })
@@ -1335,10 +1537,11 @@
     try {
       if (!await inputs[0].open(kind, options)) return false
       if (layer && sectors.containsLayer(layer)) {
-        layer.source='s0'
-        layer.file=layer.request=null
+        const assigned = layer.source==='group' ? sectors.addLayer(region,layer) : layer
+        assigned.source='s0'
+        assigned.file=assigned.request=null
         sectors.changed()
-        $('routeStatus').textContent='Entrada s0 conectada a '+sectorLabel(region)+' · '+sectorLayerLabel(layer)+'.'
+        $('routeStatus').textContent='Entrada s0 conectada a '+sectorLabel(region)+' · '+sectorLayerLabel(assigned)+'.'
       } else if (!layer && mix) mixInput()
       else $('routeStatus').textContent = 'Fuente conectada en s0, disponible para el código y los sectores.'
       return true
@@ -1475,7 +1678,7 @@
   sound.restore()
   if (location.protocol === 'file:') $('offline').textContent = '· Local'
   else if ('serviceWorker' in navigator) {
-    const workerURL = new URL('sw.js?v=2.18', location.href).href
+    const workerURL = new URL('sw.js?v=2.19', location.href).href
     const showOfflineReady = () => {
       if (navigator.serviceWorker.controller?.scriptURL === workerURL)
         $('offline').textContent = '· Disponible sin conexión'
@@ -1498,10 +1701,12 @@
     const compactEdit = layout.opened && !document.body.matches('.preview-focus,.quiet,.projecting')
     // Keep the sketch at the same resolution when the compact inspector opens.
     const rect = (compactEdit ? layout.bench : stage).getBoundingClientRect()
-    engine.resize(
-      external ? projector.innerWidth : rect.width,
-      external ? projector.innerHeight : rect.height
-    )
+    const width = external ? projector.innerWidth : rect.width
+    const height = external ? projector.innerHeight : rect.height
+    if (mappingMode && mappingAspect) {
+      const w = Math.min(width, height * mappingAspect)
+      engine.resize(Math.max(2, w), Math.max(2, w / mappingAspect))
+    } else engine.resize(width, height)
     sectors.layout()
   }
   async function fullscreen() {
@@ -1529,15 +1734,128 @@
     if (document.body.classList.contains('quiet')) hideUI()
     else fullscreen().catch((e) => notify(messageFor(e)))
   })
-  action($('project'), openOutput)
-  action($('fullPanel'), fullscreen)
+  function mappingDesk() { return $('mappingFrame').contentWindow?.fosfenoMapping }
+  function projectCurrent() {
+    if (!mappingMode) return openOutput()
+    if (!mappingDesk()) return notify('Mapeo está iniciando. Volvé a tocar Proyectar en un momento.')
+    if (!mappingDesk().openProjection()) notify('No se pudo abrir la salida. Permití las ventanas emergentes y volvé a intentar.')
+  }
+  action($('project'), projectCurrent)
+  action($('fullPanel'), () => mappingMode ? projectCurrent() : fullscreen())
+  function mappingView(surfacePage) {
+    mappingBench = surfacePage
+    document.body.classList.toggle('mapping-surface', surfacePage)
+    $('mappingFrame').hidden = !surfacePage
+    $('mappingSectors').setAttribute('aria-pressed', String(!surfacePage))
+    $('mappingSurface').setAttribute('aria-pressed', String(surfacePage))
+    showMappingReference()
+    if (!surfacePage) {
+      if (!layout.layersVisible) layout.setLayersVisible(true)
+      changeView('sectors', true)
+      resize()
+    }
+  }
+  function setMapping(on) {
+    if (mappingMode === on) return
+    mappingMode = on
+    document.body.classList.toggle('mapping-active', on)
+    const url = new URL(location.href)
+    if (on) url.searchParams.set('mode', 'mapeo')
+    else url.searchParams.delete('mode')
+    history.replaceState(history.state, '', url)
+    $('mappingNav').hidden = !on
+    if (on) $('openMapping').setAttribute('aria-current', 'true')
+    else $('openMapping').removeAttribute('aria-current')
+    if (on) {
+      if (!$('mappingFrame').hasAttribute('src')) $('mappingFrame').src = 'mapeo.html?embedded=1'
+      mappingView(false)
+      mappingDesk()?.activate()
+    } else {
+      mappingDesk()?.deactivate()
+      mappingBench = false
+      $('mappingFrame').hidden = true
+      document.body.classList.remove('mapping-surface')
+      showMappingReference()
+      resize()
+      $('openMapping').focus()
+    }
+  }
   $('openMapping').onclick = (event) => {
     if (event.ctrlKey || event.metaKey || event.shiftKey || event.altKey) return
     event.preventDefault()
     if (location.protocol === 'file:') return notify('Abrí el estudio por localhost o HTTPS para usar Mapeo.')
-    if (mappingEditor && !mappingEditor.closed) return mappingEditor.focus()
-    mappingEditor = window.open('mapeo.html', 'fosfenoMapping')
-    if (!mappingEditor) notify('Permití que Fosfeno abra la pestaña de mapeo.')
+    setMapping(!mappingMode)
+  }
+  $('exitMapping').onclick = () => setMapping(false)
+  $('mappingSectors').onclick = () => mappingView(false)
+  $('mappingSurface').onclick = () => mappingView(true)
+  $('mappingFrame').addEventListener('load', () => {
+    if (mappingMode) mappingDesk()?.activate()
+    else mappingDesk()?.deactivate()
+  })
+  $('mappingReferenceToggle').onclick = () => {
+    drawMappingReference = !drawMappingReference
+    showMappingReference()
+  }
+  function showMappingReference() {
+    $('mappingProgram').hidden = !mappingMode || mappingBench || mappingPreviewFrame === undefined
+    $('mappingReference').hidden = !mappingMode || mappingBench || !drawMappingReference || !mappingReference
+    $('mappingReferenceToggle').hidden = !mappingMode || mappingBench || !mappingReference
+    $('mappingReferenceToggle').setAttribute('aria-pressed', String(drawMappingReference))
+  }
+  window.updateFosfenoMapping = (source, aspect) => {
+    mappingReference = source
+    mappingAspect = aspect
+    showMappingReference()
+    if (mappingMode && !mappingBench) resize()
+  }
+  window.captureFosfenoMapping = () => packComposition(captureComposition())
+  window.restoreFosfenoMapping = async blob => {
+    const project = await unpackComposition(blob)
+    if (project.kind === 'operator' || !await creations.activate(project))
+      throw new Error('No se pudo recuperar el código y los sectores del mapa.')
+  }
+  window.moveFosfenoMappingLayer = async layer => {
+    const [x, y, w, h] = layer.rect
+    const round = layer.mask === 'ellipse'
+    const points = round ? Array.from({length: 96}, (_, i) => {
+      const angle = i * Math.PI / 48
+      return [x + w / 2 * (1 + Math.cos(angle)), y + h / 2 * (1 + Math.sin(angle))]
+    }) : [[x,y],[x+w,y],[x+w,y+h],[x,y+h]]
+    const [region] = await sectors.prepare([{
+      shape: round ? 'Círculo' : 'Rectángulo', points, visible: layer.visible, opacity: layer.opacity,
+      source: layer.file ? 'file' : 'sketch', file: layer.file, mediaRole: layer.mediaRole, paint: false, fx: []
+    }])
+    if (!mappingMode) { region.file?.clear(); throw new Error('Volvé a entrar a Mapeo para mover el recorte.') }
+    region.id = sectors.nextId++
+    if (region.file) sectors.files.add(region.file)
+    sectors.regions.push(region)
+    sectors.id = region.id
+    sectors.changed()
+    mappingView(false)
+  }
+  function drawReference() {
+    const reference = $('mappingReference')
+    if (reference.hidden || !mappingReference || (mappingReference.tagName === 'VIDEO' && mappingReference.readyState < 2)) return
+    if (reference.width !== canvas.width) reference.width = canvas.width
+    if (reference.height !== canvas.height) reference.height = canvas.height
+    reference.getContext('2d').drawImage(mappingReference, 0, 0, reference.width, reference.height)
+  }
+  function drawMappingPreview() {
+    if (!mappingMode || mappingBench) return
+    const preview = mappingDesk()?.preview()
+    if (!preview?.frame) return
+    const program = $('mappingProgram')
+    const resized = program.width !== canvas.width || program.height !== canvas.height
+    if (resized) { program.width = canvas.width; program.height = canvas.height }
+    if (resized || mappingPreviewFrame !== preview.frame) {
+      const context = program.getContext('2d')
+      context.fillStyle = '#000'
+      context.fillRect(0, 0, program.width, program.height)
+      if (!preview.blackout) context.drawImage(preview.canvas, 0, 0, program.width, program.height)
+      mappingPreviewFrame = preview.frame
+      program.hidden = false
+    }
   }
   window.connectFosfenoMapping = (editor, getOutput) => {
     if (!canvas.captureStream) throw new Error('Este navegador no puede compartir la salida Hydra en vivo.')
@@ -1547,6 +1865,11 @@
     const visibility = editor.document
     const connection = {
       stream,
+      regions: () => {
+        const move = sectors.renderer?.moving
+        return sectors.applied.filter(region => region.id && region.visible).map(region =>
+          move?.id === region.id ? region.points.map(([x,y]) => [x+move.x,y+move.y]) : region.points)
+      },
       windows: () => [getOutput(), editor],
       refresh: restartClock,
       close() {
@@ -1606,7 +1929,7 @@
     holdScreen()
     notify('Mové la ventana de imagen al proyector. Doble clic para pantalla completa.')
   }
-  action($('separate'), openOutput)
+  action($('separate'), projectCurrent)
   window.addEventListener('pagehide', () => {
     projector?.close()
     mappingConnection?.close()
@@ -1668,6 +1991,8 @@
         engine.setMedium(medium, 0, inputs[0].current.params)
     }
     engine.tick(ms, sound)
+    drawMappingPreview()
+    drawReference()
     frameCount++
     frameMs += ms
     if (now - lastUI > 120) {
@@ -1787,6 +2112,7 @@
     if (query.has('code')) {
       try {
         const code = decodeURIComponent(atob(query.get('code')))
+        if (!code.trim()) return { error: 'El enlace no contiene código Hydra para abrir.' }
         return { item: { id: 'enlace', name: 'Sketch de enlace', code } }
       } catch {
         return { error: 'El enlace no contiene código Hydra válido.' }
@@ -1800,6 +2126,7 @@
     if (hide && !document.body.classList.contains('quiet')) hideUI()
   }
   function navigateHistory(event) {
+    setMapping(new URL(location.href).searchParams.get('mode') === 'mapeo')
     const { item, bundled, error } = sketchAtURL()
     if (error) {
       status(error, true)
@@ -1810,17 +2137,19 @@
     applyURLVisibility()
   }
   async function start() {
+    const { item, bundled, error } = sketchAtURL()
+    const fallback = bundled ? item : startupSketch()
+    // The editor stays usable even when WebGL or the initial sketch fails.
+    restoreEditor(item,bundled,fallback)
+    initialDocument = { item: current, play: armed && !pendingFresh }
     try {
       engine = new VisualEngine(canvas, state, inputs, sound.hydraAudio, room)
       sectors.attach(engine)
       resize()
       new ResizeObserver(resize).observe(stage)
-      const { item, bundled, error } = sketchAtURL()
-      const fallback=bundled ? item : startupSketch()
       await engine.run(fallback.code)
       appliedText = fallback.code
-      restoreEditor(item,bundled,fallback)
-      initialDocument = { item: current, play: armed && !pendingFresh }
+      if (cm.getValue() === fallback.code) status('Sketch en salida.')
       if (error) status(error, true)
       else if (location.protocol !== 'file:' && !history.state?.fosfenoEntry) {
         const url = new URL(location.href)
@@ -1831,10 +2160,12 @@
         }
       }
       applyURLVisibility()
+      if (new URL(location.href).searchParams.get('mode') === 'mapeo') setMapping(true)
       window.addEventListener('popstate', navigateHistory)
       scheduleFrame()
     } catch (e) {
       console.error(e)
+      status('Salida WebGL indisponible. Podés editar y copiar el código.', true)
       fail('No se pudo iniciar la salida WebGL. ' + e.message)
     }
   }

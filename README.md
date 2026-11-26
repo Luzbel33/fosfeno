@@ -4,7 +4,7 @@ Editor de live coding y sintetizador de video con Hydra. El JavaScript del sketc
 
 Al entrar sin un enlace de sketch, Fosfeno genera una pieza con una semilla aleatoria. La semilla aparece en el nombre y en el código. Los borradores se conservan y los enlaces identificados recuperan su pieza. *MULTIVERSE*, de e_e (@eerie_ear), queda en la Biblioteca con el código y la atribución originales. [Abrir el mismo sketch en Hydra](https://hydra.ojack.xyz/?sketch_id=eerie_ear_0) · [Comparación en navegador y límites](docs/paridad-hydra.md)
 
-[Abrir el estudio](https://luzbel33.github.io/fosfeno/abrir.html?v=2.18) · [Abrir Glitch River de Flor de Fuego](https://luzbel33.github.io/fosfeno/abrir.html?v=2.18&sketch_id=flor_2) · [Ver el editor en movimiento](media/fosfeno-demo.mp4)
+[Abrir el estudio](https://luzbel33.github.io/fosfeno/abrir.html?v=2.19) · [Abrir Glitch River de Flor de Fuego](https://luzbel33.github.io/fosfeno/abrir.html?v=2.19&sketch_id=flor_2) · [Ver el editor en movimiento](media/fosfeno-demo.mp4)
 
 ## Tocar una visual
 
@@ -69,11 +69,11 @@ Para usar p5 como entrada, creá `p = new P5()`, dibujá en `p`, conectá `s1.in
 
 ### Mapeo con proyector
 
-**Mapeo** abre una mesa aparte desde localhost o HTTPS. Usá un proyector como pantalla extendida y apuntá una cámara fija hacia la misma pared u objeto plano. Elegí **Abrir proyector**, mové la ventana a esa pantalla y hacé doble clic para mostrarla completa. Seleccioná el formato de salida y tocá **Calibrar** para proyectar cuatro cruces numeradas. Marcá sus centros, en orden, en el video de la cámara o cargá una foto que muestre las cruces. Si movés el equipo, cambiás el encuadre o ajustás el tamaño de la salida, recalibrá.
+**Mapeo** activa la salida calibrada en el mismo Estudio. En **Superficie y pincel**, elegí **Abrir proyector**, mové la ventana a la pantalla extendida y hacé doble clic para mostrarla completa. Con una cámara fija apuntando a la misma superficie, elegí el formato y tocá **Calibrar**. Marcá los centros de las cuatro cruces en orden, en la cámara o en una foto que las muestre. Recalibrá si movés el equipo o cambiás el tamaño de la salida.
 
-El **Pincel** dibuja trazos sólidos, de neón o punteados. **+ Foto o video**, **+ Hydra en vivo** y **Mis loops** crean recortes. Arrastrá sobre el lienzo para colocarlos. En **Mover**, agarrá el interior para cambiar la posición o la esquina para cambiar el tamaño. En **Capas** podés cambiar el orden, la opacidad y el recorte de cada medio. **Apagón** deja la salida en negro mientras seguís editando.
+**Sectores y efectos** usa el editor del Estudio. Dibujá sectores libres, triángulos y otras formas en **Nuevo sector**. En cada capa podés combinar operadores, código, biblioteca, archivos, señal y pinceladas. **Referencia** muestra la cámara o foto sobre la visual de edición. En **Superficie y pincel** podés enviar la visual completa, sólo los sectores visibles o pintar por separado. **Editar como sector** lleva un recorte de foto, video o loop al editor Hydra para aplicarle efectos. **Apagón** deja la salida en negro. **Estudio Hydra** sale de Mapeo.
 
-**Guardar mapa** recupera esa copia al volver a abrir Mapeo en el mismo navegador. **Descargar** genera un archivo `.fosmap` con los trazos, la calibración y los archivos de las capas incrustados. **Importar** permite abrirlo en otra computadora. La foto de referencia y la cámara quedan en la mesa, sin guardarse en el archivo. Las capas de Hydra toman la salida del estudio abierto. Para reproducir la misma pieza en otra computadora, llevá también su sketch o composición.
+**Guardar mapa** guarda una copia local. **Recuperar mapa** carga su código y sus sectores junto al pincel y la calibración. **Descargar** genera un `.fosmap` con el código, los sectores, sus archivos, los trazos y la calibración. **Importar** permite abrirlo en otra computadora. Volvé a conectar las cámaras y las entradas en vivo al recuperar un mapa.
 
 La calibración corrige la perspectiva de una superficie plana usando cuatro puntos. Varios recortes pueden ocupar zonas de esa superficie. Cada cara con una profundidad distinta requiere su propia calibración. Este modo tampoco mide profundidad ni sigue objetos que se mueven.
 
@@ -83,7 +83,9 @@ La calibración corrige la perspectiva de una superficie plana usando cuatro pun
 
 Arrastrá desde el interior de un sector para moverlo. **Deformar** edita sus puntos. **Estilo** permite activar un relleno y un borde por separado, elegir sus colores o escribirlos en hexadecimal y ajustar el grosor del borde.
 
-Con **+ Capa**, agregá una imagen, código o una cadena de efectos independiente dentro del mismo contorno. Elegí la capa para ajustar su opacidad, moverla en la pila o quitarla. El relleno se dibuja debajo de las capas y el borde por encima. Bajar la opacidad de una capa deja ver las que tiene debajo.
+Con **+ Capa**, agregá una imagen, código o una cadena de efectos independiente dentro del mismo contorno. Desplegá el sector en la pila para ver cada fuente por nombre y los efectos de cada capa. El ojo alterna la visibilidad y el punto junto a un efecto lo pausa. Tocá un nombre para editar su origen o sus parámetros en la selección. Las flechas cambian el orden de la capa.
+
+Con **Agrupar**, marcá dos o más capas del mismo sector y elegí **Crear grupo**. Seleccioná el grupo para aplicar una cadena al resultado combinado de sus capas. **Desagrupar capas** conserva sus miembros. El lienzo y la pila admiten **Ctrl+C** y **Ctrl+V** para copiar y pegar dentro de la sesión, **Ctrl+Z** para deshacer y **Ctrl+Mayús+Z** o **Ctrl+Y** para rehacer. En macOS usá ⌘.
 
 **Imagen** abre las fuentes del sector, incluido el sketch, s0, sus fotos o sus videos. **+ Efecto** abre la paleta y la búsqueda de operadores Hydra. En **Edición manual**, las guías muestran el dibujo preparado y **Enviar a salida** muestra los cambios pendientes desde cualquier herramienta.
 

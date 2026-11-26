@@ -3,13 +3,26 @@ const sectorLabel = sector => sector?.id ? sector.shape + ' ' + sector.id : 'Tod
 // The original sector content is the base layer, including in older saved projects.
 const sectorLayers = sector => [sector,...(sector.layers || [])]
 const sectorLayerId = layer => layer.layerId ?? 0
-const sectorLayerLabel = layer => layer.layerId ? 'Capa ' + (layer.layerId+1) : 'Base'
+const sectorLayerLabel = layer => layer.label || (!layer.layerId ? 'Base' :
+  (layer.source === 'group' ? 'Grupo ' : 'Capa ') + (layer.layerId+1))
+const sectorPeers = (region, layer) => region.layers?.filter(item => item.groupId === layer.groupId) || []
 const defaultSectorStyle = {fillOn:false,fill:'#bf75ff',strokeOn:false,stroke:'#ffffff',strokeWidth:4}
 const sectorStyle = sector => sector.style || defaultSectorStyle
 const sectorColorPattern = /^#[\da-f]{6}$/i
-const hasLayerContent = layer => layer.source!=='sketch' || layer.paint || !!layer.code || layer.fx.some(f=>f.enabled!==false)
+const hasLayerContent = layer => layer.groupId || layer.source!=='sketch' || layer.paint ||
+  !!layer.code || layer.fx.some(f=>f.enabled!==false)
 const effectOrigin = Symbol('effect origin')
 const layerOrigin = Symbol('layer origin')
+function sectorEffectStatus(fx, index, rendered, visible) {
+  const applied = rendered?.fx.find(effect => effect[effectOrigin] === fx)
+  const playing = !!(applied && applied.enabled !== false && visible)
+  if (playing) {
+    const pending = fx.enabled === false || applied.code !== fx.code ||
+      applied.value !== fx.value || rendered.fx.indexOf(applied) !== index
+    return { playing, state: pending ? 'Cambio pendiente' : 'En salida' }
+  }
+  return { playing, state: fx.enabled === false ? 'Pausado' : visible === false ? 'Oculto' : 'Pendiente' }
+}
 const sectorEffects = {
   Invertir: [1, 0, 1, .01, (g, v) => g.invert(v)],
   Girar: [0.4, -3.14, 3.14, .01, (g, v) => g.rotate(v)],
@@ -80,6 +93,18 @@ class SectorRenderer {
       framebuffer:r.prop('target'), depth:{enable:false},
       blend:{enable:true,func:{srcRGB:'src alpha',dstRGB:'one minus src alpha',srcAlpha:'one',dstAlpha:'one minus src alpha'}}
     })
+    this.straighten = r({
+      vert:hydra.o[0].vert, attributes:hydra.o[0].attributes, count:3,
+      frag:`precision mediump float;
+        uniform vec2 resolution;
+        uniform sampler2D combined;
+        void main () {
+          vec4 c = texture2D(combined,gl_FragCoord.xy/resolution);
+          gl_FragColor = vec4(c.a > 0.0 ? c.rgb / c.a : vec3(0.0), c.a);
+        }`,
+      uniforms:{resolution:r.prop('resolution'),combined:r.prop('combined')},
+      framebuffer:r.prop('target'), depth:{enable:false}
+    })
     for (const key of ['renderFbo','renderAll']) {
       const present = hydra[key]
       hydra[key] = (...args) => {
@@ -96,7 +121,7 @@ class SectorRenderer {
     const programs = []
     const track = {layer,media,direct,shared,programs,brush:layer.paint ? new BrushSurface() : null,
       release() { media.destroy(); programs.forEach(p=>p.destroy()) }}
-    const base = {getTexture: () => direct ? this.base : shared ? h.s0.getTexture() : media}
+    const base = {getTexture: () => track.layer.source === 'group' ? this.groupTexture : direct ? this.base : shared ? h.s0.getTexture() : media}
     const patch = (code,library) => {
       const program = new SectorProgram(this.engine,base,library)
       programs.push(program)
@@ -127,7 +152,7 @@ class SectorRenderer {
       const pass = graph.glsl()[0]
       // DOM images start in the upper left. Flip the sampling coordinate so
       // live video can use Chromium's untransformed texture upload path.
-      const uv = direct ? 'screen' : layer.source === 'sketch'
+      const uv = direct || layer.source === 'group' ? 'screen' : layer.source === 'sketch'
         ? 'vec2(screen.x, 1.0-screen.y)' : 'vec2(local.x, 1.0-local.y)'
       const frag = pass.frag.replace('void main () {', 'uniform sampler2D regionMask;\nuniform float regionOpacity;\nuniform vec4 rect;\nvoid main () {')
         .replace('vec2 st = gl_FragCoord.xy/resolution.xy;', `
@@ -157,7 +182,7 @@ class SectorRenderer {
       for (const region of regions.filter(s => s.visible)) {
         const previous = this.passes.find(p=>p.region.id===region.id)
         const style = sectorStyle(region)
-        const layers = sectorLayers(region).filter((layer,index)=>hasLayerContent(layer) || (!index && !style.fillOn))
+        const layers = sectorLayers(region).filter((layer,index)=>!layer.hidden && (hasLayerContent(layer) || (!index && !style.fillOn)))
         const tracks = layers.map(layer=>{
           const signature = signatureFor(layer)
           const current = previous?.tracks.find(t=>sectorLayerId(t.layer)===sectorLayerId(layer) && t.signature===signature)
@@ -181,6 +206,12 @@ class SectorRenderer {
     for (const pass of next) pass.tracks.forEach((track,i)=>{ track.layer=pass.layers[i] })
     this.passes = next
     if (this.base && ![...retained].some(track=>track.direct)) { this.base.destroy(); this.base = null }
+    if (this.groupBuffer && ![...retained].some(track=>track.layer.source === 'group')) {
+      this.groupBuffer.destroy()
+      this.groupTexture.destroy()
+      this.groupWhite.destroy()
+      this.groupBuffer = this.groupTexture = this.groupWhite = null
+    }
   }
   bounds(pass) {
     const [x,y,w,h] = pass.geometry.bounds || regionBounds(pass.region.points)
@@ -228,8 +259,36 @@ class SectorRenderer {
     const paint = (color,matte) => this.paint({...props,rect,matte,
       ink:[1,3,5].map(i=>parseInt(color.slice(i,i+2),16)/255)})
     if (style.fillOn) paint(style.fill,pass.geometry.matte)
-    for (const track of pass.tracks) if (track.ready) track.draw({...props,rect,matte:pass.geometry.matte})
+    for (const track of pass.tracks) {
+      if (!track.ready || track.layer.groupId) continue
+      const draw = { ...props, rect, matte:pass.geometry.matte }
+      if (track.layer.source === 'group') this.drawGroup(pass, track, draw)
+      else track.draw(draw)
+    }
     if (style.strokeOn) paint(style.stroke,pass.geometry.border)
+  }
+  drawGroup(pass, group, props) {
+    const { r } = this.engine, [width,height] = props.resolution
+    if (!this.groupBuffer) {
+      this.groupBuffer = r.framebuffer({width:2,height:2,depthStencil:false})
+      this.groupTexture = r.framebuffer({width:2,height:2,depthStencil:false})
+      this.groupWhite = r.texture({width:1,height:1,data:[255,255,255,255]})
+    }
+    if (this.groupBuffer.width !== width || this.groupBuffer.height !== height) {
+      this.groupBuffer.resize(width,height)
+      this.groupTexture.resize(width,height)
+    }
+    r.clear({framebuffer:this.groupBuffer,color:[0,0,0,0]})
+    for (const child of pass.tracks) {
+      if (child.ready && child.layer.groupId === group.layer.layerId)
+        child.draw({...props,target:this.groupBuffer,matte:this.groupWhite})
+    }
+    this.straighten({resolution:props.resolution,combined:this.groupBuffer,target:this.groupTexture})
+    if (group.frameTime !== props.time) {
+      group.frameTime = props.time
+      group.programs.forEach(program => program.frame(props,props.dt ?? 0))
+    }
+    group.draw(props)
   }
   frame() {
     const { engine } = this, { canvas, r } = engine, {width,height} = canvas
@@ -239,8 +298,8 @@ class SectorRenderer {
       if (this.base.width !== width || this.base.height !== height) this.base.resize(width,height)
       this.base.subimage({copy:true,width,height})
     }
-    const props = {time:engine.h.time, resolution:[width,height], bpm:window.bpm, target:null}
     const now = performance.now(), dt = Math.min(100,now-(this.lastFrame ?? now))
+    const props = {time:engine.h.time, resolution:[width,height], bpm:window.bpm, target:null, dt}
     this.lastFrame = now
     const principal = this.passes.find(p=>p.region.id===0)
     if (principal) {
@@ -256,6 +315,7 @@ class SectorRenderer {
       if (principal?.tracks.includes(p)) continue
       p.ready = p.direct
       if (p.direct) continue
+      if (p.layer.source === 'group') { p.ready = true; continue }
       if (p.shared) { p.ready = !!engine.h.s0.src || !!p.programs.length; continue }
       const layer = p.layer
       let el = layer.source === 'sketch' ? canvas : layer.source === 's0' ? this.input() : layer.file?.current?.element
@@ -273,7 +333,8 @@ class SectorRenderer {
       p.ready = true
     }
     for (const pass of this.passes) if (pass!==principal) {
-      for (const track of pass.tracks) if (track.ready) track.programs.forEach(program=>program.frame(props,dt))
+      for (const track of pass.tracks) if (track.ready && track.layer.source !== 'group')
+        track.programs.forEach(program=>program.frame(props,dt))
       this.drawSector(pass,props)
     }
     this.capture?.(props)
@@ -288,6 +349,7 @@ class SectorDesk {
     this.onUpdate = onUpdate
     this.effectControls = new WeakMap()
     this.layerSelection = new WeakMap()
+    this.groupSelection = new Set()
     this.principal = this.makePrincipal()
     this.regions = []
     this.applied = []
@@ -324,20 +386,55 @@ class SectorDesk {
       if (!$('layerCode').hidden) $('sectorCode').focus()
     }
     $('addSectorLayer').onclick = () => {
-      const region = selected(), layers = region.layers ??= []
-      const layerId = 1+layers.reduce((id,layer)=>Math.max(id,layer.layerId),0)
-      layers.push({layerId,opacity:1,source:'sketch',paint:false,fx:[]})
-      this.layerSelection.set(region,layerId)
+      this.addLayer(selected(), this.target())
       this.changed()
     }
+    $('groupSectorLayers').onclick = () => {
+      this.groupFor = this.groupFor === this.id ? null : this.id
+      this.groupSelection.clear()
+      this.refresh()
+    }
+    $('cancelSectorGroup').onclick = () => {
+      this.groupFor = null
+      this.groupSelection.clear()
+      this.refresh()
+    }
+    $('createSectorGroup').onclick = () => this.createGroup()
     $('raiseSectorLayer').onclick = () => this.moveLayer(1)
     $('lowerSectorLayer').onclick = () => this.moveLayer(-1)
+    const layerName = $('sectorLayerName')
+    $('renameSectorLayer').onclick = () => {
+      this.renameTarget = this.target()
+      layerName.value = sectorLayerLabel(this.renameTarget)
+      layerName.hidden = false
+      layerName.focus()
+      layerName.select()
+    }
+    layerName.onkeydown = event => {
+      if (event.key==='Escape') {
+        this.renameTarget=null
+        layerName.hidden=true
+        $('renameSectorLayer').focus()
+      } else if (event.key==='Enter') layerName.blur()
+    }
+    layerName.onblur = () => {
+      if (!this.renameTarget) return
+      this.renameTarget.label = layerName.value.trim() || undefined
+      this.renameTarget = null
+      layerName.hidden = true
+      this.changed()
+    }
+    $('ejectSectorLayer').onclick = () => {
+      const region=selected(), layer=this.target()
+      this.placeLayer(region,layer,null)
+    }
     $('removeSectorLayer').onclick = () => {
       const region = selected(), layers = region.layers
-      const index = layers.indexOf(this.target())
+      const current = this.target(), index = layers.indexOf(current)
       if (index < 0) return
-      layers.splice(index,1)
-      this.layerSelection.set(region,layers[index-1]?.layerId ?? 0)
+      if (current.source === 'group') this.ungroup(region,current)
+      else layers.splice(index,1)
+      this.layerSelection.set(region,0)
       this.changed()
     }
     this.installStyleControls($)
@@ -389,6 +486,7 @@ class SectorDesk {
         else this.dirty=true
         this.onUpdate(selected())
       }
+      $(control).onchange = () => this.history?.remember()
     }
     $('sectorRepaint').onclick = () => this.activeBrush()?.reset()
     $('sectorBrushInverse').onclick = () => {
@@ -461,11 +559,64 @@ class SectorDesk {
     return this.renderer?.passes.find(pass=>pass.region.id===this.id)?.tracks.find(track=>track.layer===layer)?.brush
   }
   moveLayer(step) {
-    const layers = this.selected().layers
-    const index = layers.indexOf(this.target()), next = index+step
-    if (index<0 || next<0 || next>=layers.length) return
-    layers.splice(next,0,layers.splice(index,1)[0])
+    const region = this.selected(), layer = this.target()
+    const peers = sectorPeers(region, layer), other = peers[peers.indexOf(layer)+step]
+    if (!other || !region.layers?.includes(layer)) return
+    const layers = region.layers
+    const a = layers.indexOf(layer), b = layers.indexOf(other)
+    ;[layers[a],layers[b]] = [layers[b],layers[a]]
     this.changed()
+  }
+  addLayer(region, target) {
+    const layers = region.layers ??= []
+    const layerId = 1 + layers.reduce((id,layer)=>Math.max(id,layer.layerId),0)
+    const groupId = target?.source === 'group' ? target.layerId : target?.groupId
+    const layer = {layerId,groupId,opacity:1,source:'sketch',paint:false,fx:[]}
+    layers.push(layer)
+    this.layerSelection.set(region,layerId)
+    return layer
+  }
+  placeLayer(region,layer,target,above=false) {
+    if (layer===target || region.id===0) return
+    const group = target?.source==='group' ? target.layerId : target?.groupId
+    if (layer.source==='group' && group) return
+    if (group) layer.groupId=group
+    else delete layer.groupId
+    if (layer!==region) {
+      const layers = region.layers
+      layers.splice(layers.indexOf(layer),1)
+      const index = layers.indexOf(target)
+      if (index<0 || target?.source==='group' && group===target.layerId) layers.push(layer)
+      else layers.splice(index+(above?1:0),0,layer)
+    }
+    this.changed()
+  }
+  toggleGroupMember(layer) {
+    if (this.groupSelection.has(layer)) this.groupSelection.delete(layer)
+    else this.groupSelection.add(layer)
+    this.refresh()
+  }
+  createGroup() {
+    const region = this.selected()
+    if (!region || this.groupFor !== region.id) return
+    const members = sectorLayers(region).filter(layer =>
+      this.groupSelection.has(layer) && !layer.groupId && layer.source !== 'group')
+    if (members.length < 2) return
+    const layers = region.layers
+    const group = this.addLayer(region)
+    group.source = 'group'
+    layers.pop()
+    layers.splice(layers.indexOf(members.at(-1)) + 1,0,group)
+    for (const layer of members) layer.groupId = group.layerId
+    this.groupFor = null
+    this.groupSelection.clear()
+    this.changed()
+  }
+  ungroup(region,group) {
+    const members = region.layers.filter(layer => layer.groupId === group.layerId)
+    region.layers = region.layers.filter(layer => !members.includes(layer))
+    region.layers.splice(region.layers.indexOf(group),1,...members)
+    for (const layer of sectorLayers(region)) if (layer.groupId === group.layerId) delete layer.groupId
   }
   installStyleControls($) {
     const colors = [['Violeta','#bf75ff'],['Rosa','#ff629e'],['Naranja','#ff773f'],['Amarillo','#ffd659'],
@@ -547,18 +698,22 @@ class SectorDesk {
     this.effectControls.get(fx)?.(value)
     this.onUpdate(this.selected())
   }
-  async setFile(region,file) {
+  async setFile(region,file,role) {
     const request = Symbol()
     region.request = request
     const source = new VisualInput(() => {}, () => {}, () => {})
     try {
-      await source.open('file', { file })
+      await source.open('file', { file, role })
       if (region.request !== request || !this.containsLayer(region)) { source.clear(); return }
+      if (region.source === 'group') {
+        const parent = this.regions.find(item => item.layers?.includes(region))
+        region = this.addLayer(parent, region)
+      }
       this.files.add(source)
       region.file = source
       region.source = 'file'
       this.changed()
-      return true
+      return region
     } catch (err) { source.clear(); throw err }
   }
   note(message) { document.getElementById('sectorStatus').textContent = message }
@@ -681,6 +836,7 @@ class SectorDesk {
     return null
   }
   down(e) {
+    if (e.button===0 && e.isPrimary) this.guide.focus({preventScroll:true})
     if (this.drag || e.button !== 0) return
     const p=this.point(e)
     this.pointer=e.pointerType==='touch' ? null : e
@@ -809,6 +965,7 @@ class SectorDesk {
     }
   }
   changed() {
+    this.history?.remember()
     this.dirty = true
     if (this.live()) this.apply()
     else this.refresh()
@@ -841,27 +998,22 @@ class SectorDesk {
     }
   }
   refreshLayerControls(region,layer) {
-    const $ = id => document.getElementById(id), list = $('sectorLayerList')
+    const $ = id => document.getElementById(id)
     const layers = sectorLayers(region), index = layers.indexOf(layer)
-    const key = JSON.stringify([region.id,layers.map(sectorLayerId),index])
-    if (list.dataset.state!==key) {
-      list.dataset.state=key
-      const focused = list.contains(document.activeElement)
-      list.replaceChildren(...layers.slice().reverse().map(item=>{
-        const button = document.createElement('button')
-        button.textContent = sectorLayerLabel(item)
-        button.setAttribute('aria-pressed',item===layer)
-        button.onclick = () => {
-          this.layerSelection.set(region,sectorLayerId(item))
-          this.refresh()
-        }
-        return button
-      }))
-      if (focused) list.querySelector('[aria-pressed=true]')?.focus({preventScroll:true})
-    }
+    const peers = sectorPeers(region,layer), peer = peers.indexOf(layer)
     $('sectorLayerActions').hidden = index===0
-    $('raiseSectorLayer').disabled = index===layers.length-1
-    $('lowerSectorLayer').disabled = index<=1
+    $('raiseSectorLayer').disabled = peer<0 || peer===peers.length-1
+    $('lowerSectorLayer').disabled = peer<=0
+    $('ejectSectorLayer').hidden = !layer.groupId
+    $('removeSectorLayer').setAttribute('aria-label',layer.source==='group' ? 'Desagrupar capas' : 'Quitar capa')
+    $('removeSectorLayer').title = $('removeSectorLayer').getAttribute('aria-label')
+    const grouping = this.groupFor===region.id
+    $('groupSectorLayers').disabled = sectorLayers(region).filter(item=>!item.groupId && item.source!=='group').length<2
+    $('groupSectorLayers').setAttribute('aria-pressed',grouping)
+    $('sectorGroupActions').hidden = !grouping
+    $('createSectorGroup').disabled = this.groupSelection.size<2
+    $('sectorMediaToggle').hidden = layer.source==='group'
+    if (layer.source==='group') $('sectorMedia').hidden = true
     const style = sectorStyle(region)
     for (const [key,type] of [['fill','Fill'],['stroke','Stroke']]) {
       $('sector'+type+'Toggle').setAttribute('aria-pressed',style[key+'On'])
@@ -904,7 +1056,7 @@ class SectorDesk {
         paintRange($(control))
       }
       if (this.codeTarget !== layer) {
-        $('sectorCode').value = layer.code || ''
+        $('sectorCode').value = layer.code || 'return base()'
         this.panel(null)
         this.codeTarget = layer
       }
@@ -924,15 +1076,14 @@ class SectorDesk {
     const entries = s.fx.map((fx,i) => {
         const row = document.createElement('div'), label = document.createElement('label'), slider = document.createElement('input'),
           remove = document.createElement('button'), val = document.createElement('output')
-        const applied = rendered?.fx.find(effect=>effect[effectOrigin]===fx)
-        const playing = applied && applied.enabled!==false && appliedRegion?.visible
-        const current = playing ? 'En salida' : fx.enabled===false ? 'Pausado' : appliedRegion?.visible===false ? 'Sector oculto' : 'Pendiente'
-        const queued = this.dirty && playing && (fx.enabled===false || applied.code!==fx.code ||
-          applied.value!==fx.value || rendered.fx.indexOf(applied)!==i)
+        const group = s.groupId && sectorLayers(appliedRegion || region).find(item=>item.layerId===s.groupId)
+        const visible = appliedRegion && !!(appliedRegion.visible && !rendered?.hidden && !group?.hidden)
+        const {playing,state} = sectorEffectStatus(fx,i,rendered,visible)
         row.className = 'mixer-effect'
         row.dataset.playing=!!playing
         const heading = document.createElement('strong'), status = document.createElement('span')
-        heading.textContent=fx.name; status.textContent=queued ? 'Cambio pendiente' : current
+        heading.textContent=fx.name; status.textContent=state
+        row.dataset.effectIndex=i
         status.className='effect-status'
         slider.type = 'range'
         if (fx.kind==='operator') {
@@ -953,6 +1104,7 @@ class SectorDesk {
             if (!this.live() && playing) status.textContent='En salida · pendiente'
           })
           slider.oninput = () => this.effectAmount(s,i,Number(slider.value))
+          slider.onchange = () => this.history?.remember()
         }
         slider.setAttribute('aria-label',fx.kind==='library' ? 'Mezcla de '+fx.name : 'Parámetro de '+fx.name)
         remove.textContent = '×'; remove.setAttribute('aria-label','Quitar ' + fx.name + (region.id ? ' del sector' : ' de toda la visual'))
@@ -1000,8 +1152,9 @@ class SectorDesk {
   }
   snapshot(includePrincipal = true) {
     const regions = includePrincipal && this.principal.fx.length ? [this.principal,...this.regions] : this.regions
-    const content = ({layerId,opacity,source,paint,brushSize,brushSpeed,brushDetail,brushInverse,code,fx,file}) =>
-      ({layerId,opacity:opacity ?? 1,source,paint,brushSize:brushSize ?? .42,brushSpeed,brushDetail,brushInverse,code,fx,file:file?.current?.file})
+    const content = ({layerId,groupId,label,hidden,opacity,source,paint,brushSize,brushSpeed,brushDetail,brushInverse,code,fx,file}) =>
+      ({layerId,groupId,label,hidden,opacity:opacity ?? 1,source,paint,brushSize:brushSize ?? .42,brushSpeed,brushDetail,
+        brushInverse,code,fx:fx.map(effect=>({...effect})),file:file?.current?.file,mediaRole:file?.current?.role})
     return regions.map(s=>({id:s.id,shape:s.shape,points:s.points,visible:s.visible,style:s.style,
       ...content(s),layers:s.layers?.map(content)}))
   }
@@ -1018,14 +1171,15 @@ class SectorDesk {
     const next = [], opened = []
     try {
       for (const entry of data) {
-        const region = {...entry,layers:entry.layers?.map(layer=>({...layer}))}
+        const copy = layer => ({...layer,fx:layer.fx.map(effect=>({...effect}))})
+        const region = {...copy(entry),layers:entry.layers?.map(copy)}
         for (const layer of sectorLayers(region)) {
           const file = layer.file
           layer.file = null
           if (file) {
             layer.file = new VisualInput(() => {},() => {},() => {})
             opened.push(layer.file)
-            await layer.file.open('file',{file})
+            await layer.file.open('file',{file,role:layer.mediaRole})
           }
         }
         next.push(region)

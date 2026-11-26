@@ -6,12 +6,19 @@
     <meta name="theme-color" content="#101211">
     <title>Fosfeno · Mapeo</title>
     <link rel="icon" href="assets/mark.svg">
-    <link rel="stylesheet" href="style.css?v=2.18">
-    <link rel="stylesheet" href="mapping.css">
+    <link rel="stylesheet" href="style.css?v=2.19">
+    <link rel="stylesheet" href="mapping.css?v=2.19">
+    <script>
+      if (window === window.parent) {
+        const url = new URL('./', location.href)
+        url.searchParams.set('mode', 'mapeo')
+        location.replace(url)
+      }
+    </script>
   </head>
   <body class="mapping">
     <header class="map-header">
-      <div class="map-brand"><img src="assets/mark.svg" alt=""><h1>Mapeo</h1><a id="mapStudio" href="./">Estudio Hydra</a></div>
+      <div class="map-brand"><h1>Superficie y pincel</h1></div>
       <div class="map-output-actions">
         <button id="mapBlackout" type="button" aria-pressed="false" title="Poner el proyector en negro">Apagón</button>
         <button id="mapOutput" type="button" class="primary">Abrir proyector</button>
@@ -24,7 +31,6 @@
             <button data-tool="select" type="button" aria-pressed="true">Mover</button>
             <button data-tool="brush" type="button" aria-pressed="false">Pincel</button>
             <button id="mapAddMedia" type="button">+ Foto o video</button>
-            <button id="mapAddHydra" type="button">+ Hydra en vivo</button>
             <button id="mapLoops" type="button" aria-controls="mapLoopList" aria-expanded="false">Mis loops</button>
           </div>
           <div class="map-controls map-history" role="group" aria-label="Historial">
@@ -100,6 +106,11 @@
               </div>
             </details>
           </div>
+          <div class="map-controls map-feed" role="group" aria-label="Qué enviar desde el Estudio Hydra">
+            <button type="button" data-hydra="full" aria-pressed="true">Visual completa</button>
+            <button type="button" data-hydra="sectors" aria-pressed="false">Sólo sectores</button>
+            <button type="button" data-hydra="off" aria-pressed="false">Sin Hydra</button>
+          </div>
         </section>
         <section class="map-section map-layer-section">
           <div class="map-title"><h2>Capas</h2><button id="mapNewInk" type="button">+ Trazos</button></div>
@@ -113,14 +124,16 @@
             <div class="map-controls map-layer-actions">
               <button id="mapLayerUp" type="button">Subir</button>
               <button id="mapLayerDown" type="button">Bajar</button>
+              <button id="mapToSector" type="button">Editar como sector</button>
               <button id="mapRemoveLayer" type="button">Quitar</button>
             </div>
           </div>
         </section>
         <section class="map-section map-files" aria-label="Guardar o importar mapa">
           <button id="mapSave" type="button">Guardar mapa</button>
+          <button id="mapRestore" type="button">Recuperar mapa</button>
           <button id="mapExport" type="button">Descargar</button>
-          <button id="mapImport" type="button">Importar</button>
+          <button id="mapImport" type="button" title="Abrir el archivo y activar su código Hydra">Abrir mapa</button>
         </section>
       </aside>
     </main>
@@ -128,7 +141,7 @@
     <input id="mapPhotoFile" type="file" accept="image/*" hidden>
     <input id="mapProjectFile" type="file" accept=".fosmap,application/octet-stream" hidden>
     <script src="src/studio-storage.js"></script>
-    <script src="src/visual-input.js?v=2.4"></script>
-    <script type="module" src="src/mapping.js" onerror="document.getElementById('mapStatus').textContent='No se pudo cargar Mapeo. Abrí Fosfeno por localhost o HTTPS y recargá.'"></script>
+    <script src="src/visual-input.js?v=2.19"></script>
+    <script type="module" src="src/mapping.js?v=2.19" onerror="document.getElementById('mapStatus').textContent='No se pudo cargar Mapeo. Abrí Fosfeno por localhost o HTTPS y recargá.'"></script>
   </body>
 </html>

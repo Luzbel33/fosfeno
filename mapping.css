@@ -80,6 +80,7 @@
 .map-inputs button, .map-files button, .map-outline { background:var(--rail); border:1px solid var(--line); }
 .map-inputs button:hover, .map-files button:hover, .map-outline:hover { background:#31372f; }
 .map-calibration-actions { gap:5px; margin-top:8px; }
+.map-feed { margin-top:8px; }
 .map-outline { color:var(--green); }
 .map-choice { position:relative; min-width:0; }
 #mapCameraChoices { margin-top:6px; }

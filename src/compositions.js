@@ -57,7 +57,12 @@ async function unpackComposition(blob) {
   const fileAt = i => i === null ? null : Number.isInteger(i) && files[i] ? files[i] : invalid()
   const finite = (v,min,max) => Number.isFinite(v) && v>=min && v<=max
   function readLayer(layer) {
-    if (!['file','sketch','s0'].includes(layer.source) || typeof layer.paint !== 'boolean' ||
+    if (!['file','sketch','s0','group'].includes(layer.source) || typeof layer.paint !== 'boolean' ||
+        (layer.groupId != null && (!Number.isSafeInteger(layer.groupId) || layer.groupId<1)) ||
+        (layer.label != null && (typeof layer.label!=='string' || layer.label.length>60)) ||
+        (layer.hidden != null && typeof layer.hidden!=='boolean') ||
+        (layer.mediaRole != null && layer.mediaRole!=='loop') ||
+        (layer.source==='group' && (layer.groupId || layer.paint)) ||
         (layer.opacity != null && !finite(layer.opacity,0,1)) ||
         (layer.brushSize != null && !finite(layer.brushSize,0,1)) ||
         (layer.brushSpeed != null && !finite(layer.brushSpeed,.25,3)) ||
@@ -86,6 +91,7 @@ async function unpackComposition(blob) {
         typeof r.style.fill!=='string' || !sectorColorPattern.test(r.style.fill) ||
         typeof r.style.stroke!=='string' || !sectorColorPattern.test(r.style.stroke) || !finite(r.style.strokeWidth,1,24))) invalid()
     if (r.layers != null && (!Array.isArray(r.layers) || r.id===0)) invalid()
+    if (r.source==='group' || (r.id===0 && r.groupId)) invalid()
     readLayer(r)
     const layerIds = new Set()
     for (const layer of r.layers || []) {
@@ -93,6 +99,8 @@ async function unpackComposition(blob) {
       layerIds.add(layer.layerId)
       readLayer(layer)
     }
+    const groups = new Set(r.layers?.filter(layer=>layer.source==='group').map(layer=>layer.layerId))
+    if ([r,...(r.layers || [])].some(layer=>layer.groupId && !groups.has(layer.groupId))) invalid()
     ids.add(r.id)
   }
   const m = p.settings
@@ -106,6 +114,7 @@ async function unpackComposition(blob) {
   if ((m.brushSpeed != null && !finite(m.brushSpeed,.25,3)) ||
       (m.brushDetail != null && !finite(m.brushDetail,0,1)) ||
       (m.brushInverse != null && typeof m.brushInverse!=='boolean')) invalid()
+  if (p.inputRole != null && p.inputRole!=='loop') invalid()
   return {...p,input:fileAt(p.input)}
 }
 

@@ -99,7 +99,7 @@ async function main() {
       const timeout=setTimeout(()=>reject(new Error('El loop no volvió al inicio')),10000)
       video.addEventListener('seeking',()=>{clearTimeout(timeout); resolve()},{once:true})
     }))
-    await id('sectorLayerList').getByRole('button',{name:'Base',exact:true}).click()
+    await id('sector-tree-1').getByRole('button',{name:'Base',exact:true}).click()
     assert.equal(await id('sectorFileButton').textContent(),'Foto o video')
     assert.deepEqual(errors,[])
     console.log('Output and sector recordings, saved-row focus, download, reload, global mix, selected layer and repeated playback passed.')

@@ -4,10 +4,10 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
     <meta name="theme-color" content="#101211" />
-    <title>Fosfeno 2.18 — Hydra en vivo</title>
+    <title>Fosfeno 2.19 — Hydra en vivo</title>
     <link rel="icon" href="assets/mark.svg" />
     <link rel="stylesheet" href="vendor/codemirror/lib/codemirror.css" />
-    <link rel="stylesheet" href="style.css?v=2.18" />
+    <link rel="stylesheet" href="style.css?v=2.19" />
   </head>
   <body>
     <header class="topbar">
@@ -18,7 +18,7 @@
         <button data-view="library" aria-controls="libraryPage"><i data-icon="grid"></i><span>Biblioteca</span></button>
         <button data-view="signal" aria-controls="panel"><i data-icon="camera"></i><span>Imagen</span></button>
         <button id="signalOpen" aria-controls="panel"><i data-icon="wave"></i><span>Audio</span></button>
-        <a id="openMapping" href="mapeo.html" target="fosfenoMapping" rel="opener"><i data-icon="mapping"></i><span>Mapeo</span></a>
+        <a id="openMapping" href="?mode=mapeo"><i data-icon="mapping"></i><span>Mapeo</span></a>
       </nav>
       <div id="previewDock"></div>
       <div class="top-actions">
@@ -29,6 +29,13 @@
         <button id="project" class="primary" aria-label="Proyectar" title="Abrir una ventana con la imagen sola"><i data-icon="external"></i><span>Proyectar</span></button>
       </div>
     </header>
+    <nav id="mappingNav" aria-label="Herramientas de mapeo" hidden>
+      <button id="exitMapping" type="button">← Estudio Hydra</button>
+      <button id="mappingSectors" type="button" aria-pressed="true">Sectores y efectos</button>
+      <button id="mappingSurface" type="button" aria-pressed="false">Superficie y pincel</button>
+      <button id="mappingReferenceToggle" type="button" aria-pressed="true" hidden>Referencia</button>
+    </nav>
+    <iframe id="mappingFrame" title="Calibración y pincel de mapeo" hidden></iframe>
     <main class="workbench">
       <section class="output-area" id="previewArea" aria-labelledby="outputTitle">
         <div class="output-head">
@@ -55,7 +62,9 @@
             height="600"
             aria-label="Salida del sintetizador Hydra"
           ></canvas>
-          <canvas id="sectorGuide" hidden aria-label="Seleccionar, mover o dibujar sectores sobre la visual"></canvas>
+          <canvas id="mappingProgram" aria-hidden="true" hidden></canvas>
+          <canvas id="mappingReference" aria-hidden="true" hidden></canvas>
+          <canvas id="sectorGuide" hidden tabindex="0" aria-label="Seleccionar, mover o dibujar sectores sobre la visual"></canvas>
           <span id="touchGuideHint" aria-hidden="true"></span>
           <div id="failure" hidden role="alert"></div>
         </div>
@@ -175,22 +184,29 @@
           </div>
           <div id="sectorShapes" class="shape-picker layer-palette" hidden></div>
           <p id="sectorStatus" class="hint" role="status"></p>
-          <div id="layerOverview" role="group" aria-label="Sectores de la visual">
+          <div id="layerOverview" role="group" aria-label="Sectores y su pila de capas"></div>
             <section id="sectorDetail" aria-labelledby="effectTarget" hidden>
               <h3 id="effectTarget" class="sr-only">Toda la visual</h3>
+              <div id="layerSelectionCaption"></div>
               <div class="sector-stack sector-only">
                 <div class="sector-stack-bar">
-                  <div id="sectorLayerList" role="group" aria-label="Capas del sector"></div>
                   <button id="addSectorLayer" aria-label="Añadir capa"><i data-icon="plus"></i>Capa</button>
+                  <button id="groupSectorLayers" aria-pressed="false" title="Elegir capas para procesarlas juntas">Agrupar</button>
+                </div>
+                <div id="sectorGroupActions" class="segments" hidden>
+                  <button id="createSectorGroup" disabled>Crear grupo</button><button id="cancelSectorGroup">Cancelar</button>
                 </div>
                 <div class="sector-stack-options">
                   <button id="sectorStyleToggle" aria-controls="sectorStyle" aria-expanded="false">Estilo</button>
                   <div id="sectorLayerActions" role="group" aria-label="Orden de la capa" hidden>
                     <button id="raiseSectorLayer" aria-label="Traer capa adelante" title="Traer capa adelante">↑</button>
                     <button id="lowerSectorLayer" aria-label="Llevar capa atrás" title="Llevar capa atrás">↓</button>
+                    <button id="renameSectorLayer" type="button">Renombrar</button>
+                    <button id="ejectSectorLayer" title="Mover la capa fuera del grupo" hidden>Fuera del grupo</button>
                     <button id="removeSectorLayer" aria-label="Quitar capa" title="Quitar capa">×</button>
                   </div>
                 </div>
+                <input id="sectorLayerName" aria-label="Nombre de la capa seleccionada" maxlength="60" hidden />
               </div>
               <div class="sector-commands" role="group" aria-label="Herramientas para la selección">
                 <button id="addSectorEffect" class="primary" aria-label="Añadir efecto" aria-controls="effectPicker" aria-describedby="effectTarget" aria-expanded="false"><i data-icon="plus"></i>Efecto</button>
@@ -248,12 +264,12 @@
                 </details>
               </div>
             </section>
-          </div>
           <details id="sectorStorage" class="portable"><summary>Sectores guardados</summary>
             <div class="segments"><button id="saveSectors">Guardar sectores</button><button id="loadSectors">Recuperar guardados</button></div>
           </details>
           <p data-guide="efectos" hidden>Arrastrá desde adentro de un sector para moverlo. Deformar permite mover los puntos del contorno. En Estilo podés colorear el relleno o el borde. Elegí una capa del sector para ajustar sus efectos, imagen, código u opacidad.</p>
           <p data-guide="efectos" hidden>El interruptor pausa un efecto y conserva su ajuste. Las flechas cambian el orden y × lo quita.</p>
+          <p data-guide="efectos" hidden>En la pila podés abrir la fuente o un efecto de cualquier capa. Agrupar combina las capas marcadas antes de aplicar los efectos del grupo. En el lienzo y en Sectores usá Ctrl+C y Ctrl+V para copiar la selección, Ctrl+Z para deshacer y Ctrl+Mayús+Z para rehacer.</p>
         </section>
         <section data-viewpane="signal" id="panel" hidden>
           <nav class="tabs" aria-label="Secciones de señal">
@@ -431,18 +447,19 @@
     <script src="vendor/acorn/dist/acorn.js"></script>
     <script src="vendor/hydra-gallery/examples.js"></script>
     <script src="src/score-tools.js?v=2.16"></script>
-    <script src="src/sketches.js?v=2.16"></script>
+    <script src="src/sketches.js?v=2.19"></script>
     <script src="src/engine.js?v=2.16"></script>
     <script src="src/media.js?v=2.16"></script>
-    <script src="src/visual-input.js?v=2.4"></script>
+    <script src="src/visual-input.js?v=2.19"></script>
     <script src="src/studio-storage.js"></script>
-    <script src="src/sectors.js?v=2.18"></script>
+    <script src="src/sectors.js?v=2.19"></script>
     <script src="src/sector-program.js?v=2.16"></script>
+    <script src="src/sector-history.js"></script>
     <script src="src/loops.js?v=2.17"></script>
     <script src="src/layout.js?v=2.17"></script>
-    <script src="src/compositions.js?v=2.16"></script>
+    <script src="src/compositions.js?v=2.19"></script>
     <script src="src/code-guide.js?v=2.16"></script>
     <script src="src/operator-editor.js?v=2.16"></script>
-    <script src="src/app.js?v=2.18"></script>
+    <script src="src/app.js?v=2.19"></script>
   </body>
 </html>

@@ -37,7 +37,7 @@ async function touchAndZoom(browser) {
   await touch('touchMove',[point(.75)])
   await touch('touchEnd',[])
   assert.equal(await page.locator('#effectTarget').textContent(),'Rectángulo 1')
-  assert.equal(await page.locator('#sectorDetail').evaluate(el=>el.previousElementSibling?.querySelector('button')?.getAttribute('aria-label')),'Rectángulo 1')
+  assert.equal(await page.locator('#layerOverview .layer-select[aria-pressed=true]').getAttribute('aria-label'),'Rectángulo 1')
   const layerScroll = () => page.locator('#layerDesk').evaluate(el=>el.scrollTop)
   const beforePicker = await layerScroll()
   await tap('addSectorEffect')
