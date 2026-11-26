@@ -1,10 +1,10 @@
-# Fosfeno 3.1.1 · Hydra en vivo
+# Fosfeno 3.1.2 · Hydra en vivo
 
 Editor de live coding y sintetizador de video con Hydra. El JavaScript del sketch genera la imagen base. Los sectores opcionales componen sus efectos encima de esa salida. Podés empezar en blanco, editar una pieza existente o generar un nuevo grafo de señales a partir de una semilla.
 
 Al entrar sin un enlace de sketch, Fosfeno genera una pieza con una semilla aleatoria. La semilla aparece en el nombre y en el código. Los borradores se conservan y los enlaces identificados recuperan su pieza. *MULTIVERSE*, de e_e (@eerie_ear), queda en la Biblioteca con el código y la atribución originales. [Abrir el mismo sketch en Hydra](https://hydra.ojack.xyz/?sketch_id=eerie_ear_0) · [Comparación en navegador y límites](docs/paridad-hydra.md)
 
-[Abrir el estudio](https://luzbel33.github.io/fosfeno/abrir.html?v=3.1.1) · [Abrir Mapeo](https://luzbel33.github.io/fosfeno/abrir.html?v=3.1.1&mode=mapeo) · [Abrir Glitch River de Flor de Fuego](https://luzbel33.github.io/fosfeno/abrir.html?v=3.1.1&sketch_id=flor_2) · [Ver el editor en movimiento](media/fosfeno-demo.mp4)
+[Abrir el estudio](https://luzbel33.github.io/fosfeno/abrir.html?v=3.1.2) · [Abrir Mapeo](https://luzbel33.github.io/fosfeno/abrir.html?v=3.1.2&mode=mapeo) · [Abrir Glitch River de Flor de Fuego](https://luzbel33.github.io/fosfeno/abrir.html?v=3.1.2&sketch_id=flor_2) · [Ver el editor en movimiento](media/fosfeno-demo.mp4)
 
 ## Tocar una visual
 
@@ -57,7 +57,7 @@ Probá seleccionar y ejecutar `pliegues = 9`. Podés usar las cuatro entradas `s
 
 ### Biblioteca e intercambio
 
-En **Visuales**, tocá **Editar** en la ficha o hacé clic derecho y elegí **Editar parámetros**. Podés ajustar los valores con deslizadores o introducir un número exacto. La miniatura permite probar cambios antes de aplicarlos. Los sketches que necesitan una cámara o una función GLSL propia se pueden ajustar y probar en su destino. **Guardar variante** crea una copia. Para retocar sólo una de varias instancias, elegila en la **Pila** y tocá **Editar parámetros**.
+En **Visuales**, tocá **Editar** en la ficha o hacé clic derecho y elegí **Editar parámetros**. Para retocar una instancia que ya está en la mezcla, elegila en la **Pila** del Estudio o de Mapeo. En vivo, cada deslizador cambia esa instancia mientras ves la composición. En modo manual, usá **Preparar cambios** y luego **Enviar a salida**. Una visual que todavía está en la biblioteca se puede probar en la miniatura antes de asignarla. **Guardar variante** crea una copia.
 
 La línea **Destino** indica dónde se usará la próxima pieza. **Visuales** permite buscar sketches propios, preinstalados y del catálogo por nombre o autor. En **Semillas** podés escribir enteros largos y decimales con signo, coma o punto. `-012,3750` y `-12.375` recuperan la misma visual con la misma simetría. **Aleatoria** sortea otro número. Después podés aplicarlo al destino o mezclarlo. **Loops** muestra la colección de videos. **Proyectos** guarda e importa composiciones y operadores.
 

@@ -1,4 +1,4 @@
-// The working copy belongs to this dialog; only its footer writes to the studio.
+// Unassigned library sketches stay in preview until the operator places them.
 class VisualParameterInspector {
   static operators={
     osc:'Franjas',noise:'Ruido',shape:'Polígono',solid:'Color plano',gradient:'Gradiente',
@@ -13,8 +13,10 @@ class VisualParameterInspector {
     const [operator,...location]=group.split(' · ')
     return [VisualParameterInspector.operators[operator] || operator,...location].join(' · ')
   }
-  constructor(transforms) {
+  constructor(transforms, live, resize) {
     this.transforms=transforms
+    this.live=live
+    this.resize=resize
     const get=id=>document.getElementById(id)
     this.dialog=get('visualParameters')
     this.fields=get('visualParamFields')
@@ -35,20 +37,56 @@ class VisualParameterInspector {
       this.status.textContent=''
       this.schedulePreview()
     }
+    this.source.onchange=()=>{
+      if (this.target?.realtime && this.live()) this.writeLive()
+    }
     this.preview=new VisualParameterPreview(this.canvas)
-    get('cancelVisualParams').onclick=()=>this.dialog.close()
+    get('cancelVisualParams').onclick=()=>this.close()
     this.search.oninput=()=>this.draw()
-    this.dialog.addEventListener('close',()=>{
-      clearTimeout(this.timer)
-      this.preview.stop()
-      this.target=null
+    this.dialog.addEventListener('keydown',event=>{
+      if (event.key==='Escape') { event.preventDefault(); event.stopPropagation(); this.close() }
     })
     this.apply.onclick=()=>this.submit('apply')
     this.mix.onclick=()=>this.submit('mix')
     this.save.onclick=()=>this.submit('save')
   }
+  close() {
+    if (this.dialog.hidden) return
+    this.finishGesture()
+    clearTimeout(this.timer)
+    this.timer=null
+    this.preview.stop()
+    this.target=null
+    this.dialog.hidden=true
+    document.body.classList.remove('parameters-open')
+    this.resize()
+    if (this.trigger?.getClientRects().length) this.trigger.focus({preventScroll:true})
+  }
+  syncMode() {
+    if (!this.target) return
+    const active=this.target.realtime && this.live()
+    this.apply.hidden=!!active
+    if (this.target.realtime) this.apply.textContent='Preparar cambios'
+    if (active) this.status.textContent='Editando la mezcla en vivo'
+    this.refreshPreview()
+  }
+  writeLive() {
+    clearTimeout(this.writeTimer)
+    this.writeTimer=null
+    if (!this.target?.realtime || !this.live()) return
+    try {
+      this.validate()
+      this.target.apply(this.code,true)
+    }
+    catch (error) { this.status.textContent=error.message }
+  }
+  finishGesture() {
+    if (this.writeTimer!==null && this.writeTimer!==undefined) this.writeLive()
+    this.target?.finish?.()
+  }
   open(target) {
-    if (this.dialog.open) return
+    if (!this.dialog.hidden) this.close()
+    this.trigger=document.activeElement
     this.target=target
     this.code=target.code
     this.source.value=target.code
@@ -63,23 +101,32 @@ class VisualParameterInspector {
     document.getElementById('visualParamTitle').textContent=target.name
     document.getElementById('visualParamTarget').textContent=target.destination
     this.draw()
-    this.dialog.showModal()
-    this.refreshPreview()
+    this.dialog.hidden=false
+    document.body.classList.add('parameters-open')
+    this.syncMode()
+    this.resize()
+    document.getElementById('cancelVisualParams').focus({preventScroll:true})
   }
   refreshPreview() {
     this.timer=null
     const target=this.target
-    if (!target || !this.dialog.open) return
+    if (!target || this.dialog.hidden) return
+    const useStage=target.realtime && this.live()
     let result
-    try { result=this.preview.show(this.code,{kind:target.kind,definitions:target.definitions || [],
+    if (useStage) { this.preview.stop(); result={ok:false,reason:''} }
+    else try { result=this.preview.show(this.code,{kind:target.kind,definitions:target.definitions || [],
       audioLevels:()=>window.a?.fft || []}) }
     catch { result={ok:false,reason:'Vista previa no disponible para esta visual.'} }
     this.canvas.hidden=!result.ok
-    this.dialog.classList.toggle('vp-no-preview',!result.ok)
     this.notice.textContent=result.ok ? (target.kind==='operator'?'Vista previa · señal de muestra':'Vista previa') : result.reason
   }
   schedulePreview() {
     if (!this.timer) this.timer=setTimeout(()=>this.refreshPreview(),110)
+  }
+  validate() {
+    if (this.code===this.target.code) return
+    const source=this.target.kind==='operator'?'base()'+this.code:this.code
+    acorn.parse(source,{ecmaVersion:'latest',allowReturnOutsideFunction:true,allowAwaitOutsideFunction:true})
   }
   async submit(action) {
     const target=this.target
@@ -88,18 +135,15 @@ class VisualParameterInspector {
     if (invalid) { invalid.closest('details').open=true; invalid.reportValidity(); return }
     this.busy=true
     try {
+      this.validate()
       if (action==='save') {
         const name=this.name.value.trim()
         if (!name) { this.status.textContent='Escribí un nombre para la variante.'; this.name.focus(); return }
         const message=await target.save(this.code,name)
         if (this.target===target) this.status.textContent=message
       } else {
-        if (this.code!==target.code) {
-          const source=target.kind==='operator'?'base()'+this.code:this.code
-          acorn.parse(source,{ecmaVersion:'latest',allowReturnOutsideFunction:true,allowAwaitOutsideFunction:true})
-        }
         await target[action](this.code)
-        if (this.target===target) this.dialog.close()
+        if (this.target===target) this.close()
       }
     } catch (error) {
       if (this.target===target) this.status.textContent=error.message || String(error)
@@ -148,11 +192,13 @@ class VisualParameterInspector {
         this.source.value=this.code
         this.status.textContent=''
         this.schedulePreview()
+        if (this.target?.realtime && this.live() && this.writeTimer==null)
+          this.writeTimer=setTimeout(()=>this.writeLive(),42)
       } catch (error) { this.status.textContent=error.message }
     }
     if (param.kind==='boolean') {
       field.type='checkbox'; field.checked=param.value
-      field.onchange=()=>change(field.checked)
+      field.onchange=()=>{ change(field.checked); this.finishGesture() }
     } else {
       field.type='number'; field.step='any'; field.required=true; field.value=param.value
       const slider=document.createElement('input')
@@ -166,6 +212,8 @@ class VisualParameterInspector {
       slider.oninput=()=>{
         field.value=slider.value; paintRange(slider); change(slider.valueAsNumber)
       }
+      slider.onchange=()=>this.finishGesture()
+      field.onchange=()=>this.finishGesture()
       field.oninput=()=>{
         const value=field.valueAsNumber
         if (!Number.isFinite(value)) return

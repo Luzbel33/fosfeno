@@ -1,6 +1,6 @@
 ;(() => {
   'use strict'
-  const edition = '3.1.1'
+  const edition = '3.1.2'
   const blankScore = '// Tu sketch Hydra'
   const $ = (id) => document.getElementById(id)
   const all = (sel, root = document) => Array.from(root.querySelectorAll(sel))
@@ -1279,6 +1279,7 @@
     if (tab === 'input') listCameras()
   }
   function fromToolbar(next, tab) {
+    visualInspector.close()
     if (next==='code') return openSelectionCode()
     if (mappingBench) mappingView(false)
     if (layout.wide.matches && next==='sectors') {
@@ -1574,9 +1575,11 @@
     window.open(target.href, '_blank', 'noopener,noreferrer')
   }
   $('liveEdit').onclick = () => {
+    visualInspector.finishGesture()
     live = !live
     if (live) sectors.apply()
     updateLiveEdit()
+    visualInspector.syncMode()
     if (view==='library') {
       library()
       if (!$('catalog').hidden) filterCommunity()
@@ -1692,7 +1695,7 @@
     if (view==='library') library()
     return 'Variante guardada en Biblioteca → Mis sketches.'
   }
-  const visualInspector=new VisualParameterInspector(()=>engine?.hydra.generator.glslTransforms || {})
+  const visualInspector=new VisualParameterInspector(()=>engine?.hydra.generator.glslTransforms || {},()=>live,resize)
   function targetCaption(region,layer) {
     return region?.id ? sectorLabel(region)+' · '+sectorLayerLabel(layer) : 'Toda la visual'
   }
@@ -1701,7 +1704,7 @@
     const base=ref.kind==='base', layerCode=ref.kind==='code'
     const original=base?cm.getValue():layerCode?layer.code:effect?.code
     if (!original) return
-    const priorBase=current
+    let priorBase=current, expected=original, gesture=false
     const name=base?($('scoreName').value || 'Fondo'):layerCode?sectorLayerLabel(layer):effect.name
     const kind=effect?.kind || 'library'
     const save=kind==='operator' ? async(code,title)=>{
@@ -1709,23 +1712,37 @@
         origin:effect.origin || [],regions:[]}),'operator')
       return 'Operador guardado en Biblioteca → Proyectos.'
     } : layerCode ? null : saveVisualCopy
-    visualInspector.open({name,kind,definitions:effect?.definitions,code:original,save,
+    if (mappingBench) mappingDesk()?.viewParameters()
+    visualInspector.open({name,kind,definitions:effect?.definitions,code:original,save,realtime:true,
       destination:base?'Fondo':targetCaption(sector,layer)+(layerCode?' · Código de capa':' · Efecto'),
-      action:live?'Aplicar cambios':'Preparar cambios',
-      apply(code) {
-        if (base ? current!==priorBase || cm.getValue()!==original :
-            !sectors.containsLayer(layer) || (layerCode?layer.code!==original:!layer.fx.includes(effect) || effect.code!==original))
+      finish() {
+        if (gesture) {
+          sectors.history?.remember()
+          studioStack.notify()
+        }
+        gesture=false
+      },
+      apply(code, realtime=false) {
+        if (base ? current!==priorBase || cm.getValue()!==expected :
+            !sectors.containsLayer(layer) || (layerCode?layer.code!==expected:!layer.fx.includes(effect) || effect.code!==expected))
           throw new Error('El contenido cambió durante la edición. Volvé a abrir sus parámetros.')
-        if (code===original) return
+        if (code===expected) return
         if (base) {
           current={...current,libraryId:linkLibraryInstance(current),generator:undefined}
-          cm.replaceRange(code,{line:0,ch:0},cm.posFromIndex(original.length),'visual-parameters')
+          priorBase=current
+          cm.replaceRange(code,{line:0,ch:0},cm.posFromIndex(expected.length),'visual-parameters')
+          if (realtime) { flush(); execute(code) }
           refreshLibraryIndicators()
         } else {
           if (layerCode) layer.code=code
           else writeEffectCode(effect,code)
-          sectors.changed()
+          if (realtime) {
+            gesture=true
+            sectors.dirty=true
+            sectors.apply()
+          } else sectors.changed()
         }
+        expected=code
       }})
   }
   function openLibraryParameters(item,play,region) {

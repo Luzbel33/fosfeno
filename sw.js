@@ -1,13 +1,13 @@
 // Bump the asset version when publishing a new edition of the cabina.
 const prefix = 'fosfeno-' + new URL(self.registration.scope).pathname + '-'
-const cacheName = prefix + 'v3.1.1'
+const cacheName = prefix + 'v3.1.2'
 const files = [
   'index.html',
   'abrir.html',
   'mapeo.html',
-  'style.css?v=3.1',
+  'style.css?v=3.1.2',
   'mapping.css?v=3.1',
-  'src/mapping.js?v=3.1',
+  'src/mapping.js?v=3.1.2',
   'src/mapping-samples.mjs?v=3.1',
   'media/mapas/iris-de-marea.fosmap',
   'media/mapas/umbral-de-ambar.fosmap',
@@ -41,7 +41,7 @@ const files = [
   'src/studio-stack.js?v=3.1',
   'src/projector-display.js?v=3.1',
   'src/projector-code.js?v=3.1',
-  'src/app.js?v=3.1.1',
+  'src/app.js?v=3.1.2',
   'src/score-tools.js?v=3.1',
   'src/sectors.js?v=3.1',
   'src/sector-program.js?v=3.1',
@@ -50,11 +50,11 @@ const files = [
   'src/layout.js?v=3.1',
   'src/compositions.js?v=3.1',
   'src/code-guide.js?v=3.1',
-  'src/context-code.js?v=3.1.1',
+  'src/context-code.js?v=3.1.2',
   'src/operator-editor.js?v=3.1',
   'src/visual-parameters.js?v=3.1',
   'src/visual-preview.js?v=3.1',
-  'src/visual-inspector.js?v=3.1',
+  'src/visual-inspector.js?v=3.1.2',
   'vendor/dist/hydra-synth.js?v=2.3',
   'vendor/p5/p5.min.js',
   'vendor/p5/hydra-wrapper.js',

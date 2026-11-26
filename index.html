@@ -4,10 +4,10 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
     <meta name="theme-color" content="#101211" />
-    <title>Fosfeno 3.1.1 — Hydra en vivo</title>
+    <title>Fosfeno 3.1.2 — Hydra en vivo</title>
     <link rel="icon" href="assets/mark.svg" />
     <link rel="stylesheet" href="vendor/codemirror/lib/codemirror.css" />
-    <link rel="stylesheet" href="style.css?v=3.1" />
+    <link rel="stylesheet" href="style.css?v=3.1.2" />
     <link rel="stylesheet" href="src/stack.css?v=3.1" />
     <link rel="stylesheet" href="src/music.css?v=3.1" />
   </head>
@@ -36,6 +36,7 @@
         <button id="project" class="primary" aria-label="Proyectar" title="Abrir la ventana del proyector"><i data-icon="external"></i><span>Proyectar</span></button>
       </div>
     </header>
+    <div class="editing-desk">
     <iframe id="mappingFrame" title="Calibración y pincel de mapeo" allow="camera; fullscreen" hidden></iframe>
     <main class="workbench">
       <section class="output-area" id="previewArea" aria-labelledby="outputTitle">
@@ -482,6 +483,35 @@
       </aside>
       <div class="toast" id="toast" role="status"></div>
     </main>
+    <aside id="visualParameters" aria-labelledby="visualParamTitle" hidden>
+      <header class="vp-header">
+        <div><p id="visualParamTarget"></p><h2 id="visualParamTitle"></h2></div>
+        <button type="button" id="cancelVisualParams" aria-label="Cerrar edición de parámetros" title="Cerrar (Esc)"><i data-icon="close"></i></button>
+      </header>
+      <div class="vp-body">
+        <div class="vp-preview">
+          <canvas id="visualParamPreview" width="320" height="180" aria-label="Vista previa de la visual"></canvas>
+          <p id="visualPreviewNotice"></p>
+        </div>
+        <section class="vp-controls" aria-label="Parámetros de la visual">
+          <input type="search" id="visualParamSearch" aria-label="Buscar parámetro u operador" placeholder="Buscar parámetro u operador…">
+          <div id="visualParamFields"></div>
+          <details id="visualParamSource"><summary>Ver o editar código</summary>
+            <textarea id="visualVariantCode" aria-label="Código de esta variante" spellcheck="false"></textarea>
+          </details>
+        </section>
+      </div>
+      <footer class="vp-footer">
+        <details id="visualParamSave"><summary>Guardar variante</summary>
+          <div><label>Nombre de la variante<input id="visualVariantName" maxlength="85"></label>
+          <button type="button" id="saveVisualVariant">Guardar copia</button></div>
+        </details>
+        <p id="visualParamStatus" role="status"></p>
+        <div class="vp-actions"><button type="button" id="mixVisualParams" class="outline">Mezclar</button>
+          <button type="button" id="applyVisualParams" class="primary">Aplicar cambios</button></div>
+      </footer>
+    </aside>
+    </div>
     <footer id="consoleDock" aria-label="Controles de la sesión">
       <div class="transport" id="transport" role="group" aria-label="Reproducción y generación">
         <button
@@ -518,34 +548,7 @@
       <div id="displayChoices"></div>
       <div class="dialog-actions"><button id="manualDisplay" type="button">Ubicar a mano</button><button id="cancelDisplay" type="button" autofocus>Cancelar</button></div>
     </dialog>
-    <dialog id="visualParameters" aria-labelledby="visualParamTitle">
-      <header class="vp-header">
-        <div><p id="visualParamTarget"></p><h2 id="visualParamTitle"></h2></div>
-        <button type="button" id="cancelVisualParams" aria-label="Cerrar edición de parámetros" title="Cerrar (Esc)"><i data-icon="close"></i></button>
-      </header>
-      <div class="vp-body">
-        <div class="vp-preview">
-          <canvas id="visualParamPreview" width="320" height="180" aria-label="Vista previa de la visual"></canvas>
-          <p id="visualPreviewNotice"></p>
-        </div>
-        <section class="vp-controls" aria-label="Parámetros de la visual">
-          <input type="search" id="visualParamSearch" aria-label="Buscar parámetro u operador" placeholder="Buscar parámetro u operador…">
-          <div id="visualParamFields"></div>
-          <details id="visualParamSource"><summary>Ver o editar código</summary>
-            <textarea id="visualVariantCode" aria-label="Código de esta variante" spellcheck="false"></textarea>
-          </details>
-        </section>
-      </div>
-      <footer class="vp-footer">
-        <details id="visualParamSave"><summary>Guardar variante</summary>
-          <div><label>Nombre de la variante<input id="visualVariantName" maxlength="85"></label>
-          <button type="button" id="saveVisualVariant">Guardar copia</button></div>
-        </details>
-        <p id="visualParamStatus" role="status"></p>
-        <div class="vp-actions"><button type="button" id="mixVisualParams" class="outline">Mezclar</button>
-          <button type="button" id="applyVisualParams" class="primary">Aplicar cambios</button></div>
-      </footer>
-    </dialog>
+
     <dialog id="newCompositionDialog" aria-labelledby="newCompositionTitle" aria-describedby="newCompositionDescription">
       <h2 id="newCompositionTitle">¿Empezar en blanco?</h2>
       <p id="newCompositionDescription">Se vaciará la salida del estudio y se detendrán las entradas activas. Tus sketches, composiciones y loops guardados seguirán en la biblioteca.</p>
@@ -589,13 +592,13 @@
     <script src="src/layout.js?v=3.1"></script>
     <script src="src/compositions.js?v=3.1"></script>
     <script src="src/code-guide.js?v=3.1"></script>
-    <script src="src/context-code.js?v=3.1.1"></script>
+    <script src="src/context-code.js?v=3.1.2"></script>
     <script src="src/operator-editor.js?v=3.1"></script>
     <script src="src/visual-parameters.js?v=3.1"></script>
     <script src="src/visual-preview.js?v=3.1"></script>
-    <script src="src/visual-inspector.js?v=3.1"></script>
+    <script src="src/visual-inspector.js?v=3.1.2"></script>
     <script src="src/projector-display.js?v=3.1"></script>
     <script src="src/projector-code.js?v=3.1"></script>
-    <script src="src/app.js?v=3.1.1"></script>
+    <script src="src/app.js?v=3.1.2"></script>
   </body>
 </html>

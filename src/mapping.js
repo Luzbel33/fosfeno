@@ -2518,6 +2518,10 @@ $('mapEditSeed').onclick = () => {
 }
 $('mapApplySeed').onclick = () => studioWindow.fosfenoSeeds.send().catch(errorStatus)
 window.fosfenoMapping = { activate, deactivate, openProjection, chooseDisplay, action:objectAction, codeTarget:selectedMapCode,
+  viewParameters() {
+    if (!calibration) selectDisplay('output')
+    viewport.scrollIntoView({block:'nearest'})
+  },
   canPaste:()=>!!copiedLayer,
   pendingSeed(pending) { $('mapApplySeed').hidden=!pending },
   showSeed(sectorId,name,visibility) {
