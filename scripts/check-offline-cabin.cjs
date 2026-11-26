@@ -16,8 +16,8 @@ async function assetAudit() {
   assert.equal(new Set(manifest).size,manifest.length,'URLs únicas en el manifiesto.')
   const include = path => assert.ok(manifest.includes(path),'Falta en el manifiesto: '+path)
   for (const path of manifest) assert.ok((await stat(join(__dirname,'..',path.split('?')[0]))).isFile(),path)
-  for (const doc of ['index.html','mapeo.html']) {
-    for (const [,path] of (await read(doc)).matchAll(/(?:src|href)="((?:src|vendor|assets)\/[^"]+|(?:style|mapping)\.css[^"]*)"/g))
+  for (const doc of ['index.html','mapeo.html','abrir.html']) {
+    for (const [,path] of (await read(doc)).matchAll(/(?:src|href)="((?:src|vendor|assets)\/[^"]+|(?:style|mapping|boot)\.css[^"]*)"/g))
       include(path)
   }
   for (const entry of manifest.filter(path=>/^src\/.+\.(?:js|mjs)(?:\?.*)?$/.test(path))) {

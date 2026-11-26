@@ -2,13 +2,23 @@
 <html lang="es">
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>Abrir Fosfeno 3.1.4</title>
-  <body>
-    <p id="estado" role="status">Abriendo Fosfeno…</p>
-    <a id="continuar" href="./" hidden>Continuar al estudio</a>
+  <meta name="theme-color" content="#101311">
+  <link rel="icon" type="image/svg+xml" href="assets/mark.svg?v=3.1.5">
+  <link rel="apple-touch-icon" href="assets/apple-touch-icon.png?v=3.1.5">
+  <link rel="stylesheet" href="boot.css?v=3.1.5">
+    <title>Abrir Fosfeno 3.1.5</title>
+  <body class="boot-frame">
+    <main class="boot-lockup">
+      <img class="boot-mark" src="assets/mark.svg?v=3.1.5" alt="">
+      <strong class="boot-name">FOSFENO</strong>
+      <p class="boot-status" id="estado" role="status">Abriendo el estudio…</p>
+      <div class="boot-track" aria-hidden="true"></div>
+      <a id="continuar" href="./" hidden>Continuar al estudio</a>
+      <noscript>Activá JavaScript para abrir el estudio.</noscript>
+    </main>
     <script>
       const destino = new URL(location.protocol==='file:' ? 'index.html' : './', location.href)
-      const version = '3.1.4'
+      const version = '3.1.5'
       destino.search = location.search
       destino.searchParams.set('v',version)
       destino.hash = location.hash
@@ -42,6 +52,7 @@
       }
 
       abrir().catch(() => {
+        document.body.dataset.failed=''
         document.getElementById('estado').textContent = 'No se pudo actualizar Fosfeno. Revisá la conexión y recargá esta página para reintentar.'
         continuar.hidden = false
       })

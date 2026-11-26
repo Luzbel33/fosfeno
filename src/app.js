@@ -1,6 +1,6 @@
 ;(() => {
   'use strict'
-  const edition = '3.1.4'
+  const edition = '3.1.5'
   const blankScore = '// Tu sketch Hydra'
   const $ = (id) => document.getElementById(id)
   const all = (sel, root = document) => Array.from(root.querySelectorAll(sel))
@@ -3351,5 +3351,8 @@
       fail('No se pudo iniciar la salida WebGL. ' + e.message)
     }
   }
-  start()
+  start().catch(error=>{
+    console.error(error)
+    fail('No se pudo abrir el estudio. Recargá Fosfeno para reintentar.')
+  }).finally(()=>{ $('studioBoot').hidden=true })
 })()

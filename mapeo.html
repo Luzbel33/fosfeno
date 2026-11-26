@@ -5,9 +5,10 @@
     <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
     <meta name="theme-color" content="#101211">
     <title>Fosfeno · Mapeo</title>
-    <link rel="icon" href="assets/mark.svg">
+    <link rel="icon" type="image/svg+xml" href="assets/mark.svg?v=3.1.5">
     <link rel="stylesheet" href="style.css?v=3.1.3">
     <link rel="stylesheet" href="mapping.css?v=3.1">
+    <link rel="stylesheet" href="boot.css?v=3.1.5">
     <script>
       if (window === window.parent) {
         const url = new URL('./', location.href)
@@ -17,7 +18,14 @@
     </script>
   </head>
   <body class="mapping">
-    <p id="mapBoot" class="map-boot" role="status">Cargando Mapeo…</p>
+    <div id="mapBoot" class="boot-frame">
+      <div class="boot-lockup">
+        <img class="boot-mark" src="assets/mark.svg?v=3.1.5" alt="">
+        <strong class="boot-name">FOSFENO</strong>
+        <p class="boot-status" role="status">Preparando Mapeo…</p>
+        <div class="boot-track" aria-hidden="true"></div>
+      </div>
+    </div>
     <header class="map-header" id="mapHeader" hidden>
       <h1 class="sr-only">Superficie y pincel</h1>
       <div class="map-controls map-view-bar">
@@ -254,6 +262,6 @@
     <script src="src/gif-input.js?v=3.1"></script>
     <script src="src/visual-input.js?v=3.1"></script>
     <script src="src/editor-menu.js?v=3.1.4"></script>
-    <script type="module" src="src/mapping.js?v=3.1.2" onerror="document.getElementById('mapBoot').textContent='No se pudo cargar Mapeo. Abrí Fosfeno por localhost o HTTPS y recargá.'"></script>
+    <script type="module" src="src/mapping.js?v=3.1.2" onerror="this.ownerDocument.getElementById('mapBoot').dataset.failed=''; this.ownerDocument.querySelector('#mapBoot .boot-status').textContent='No se pudo cargar Mapeo. Recargá Fosfeno para reintentar.'"></script>
   </body>
 </html>

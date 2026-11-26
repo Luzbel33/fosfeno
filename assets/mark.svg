@@ -1,1 +1,17 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48" fill="none"><g stroke="#c6fc55" stroke-width="2.5" transform="rotate(-28 24 24)"><ellipse cx="24" cy="24" rx="22" ry="12.5"/><ellipse cx="24" cy="24" rx="14.4" ry="12.5"/><ellipse cx="24" cy="24" rx="6.6" ry="12.5"/><path d="M2 24h44M6.4 17h35.2M6.4 31h35.2"/></g></svg>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" fill="none">
+  <defs>
+    <linearGradient id="signal" x1="8" y1="44" x2="55" y2="19" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#8fea88"/>
+      <stop offset=".52" stop-color="#d4fa62"/>
+      <stop offset="1" stop-color="#f5ffd0"/>
+    </linearGradient>
+  </defs>
+  <rect x="1" y="1" width="62" height="62" rx="16" fill="#141a17" stroke="#354139" stroke-width="2"/>
+  <g transform="rotate(-32 32 32)" stroke="url(#signal)" stroke-width="3.5">
+    <ellipse cx="32" cy="32" rx="24" ry="13"/>
+    <ellipse cx="32" cy="32" rx="16" ry="13"/>
+    <ellipse cx="32" cy="32" rx="7" ry="13"/>
+    <path d="M10 32h44" stroke-linecap="round"/>
+  </g>
+  <circle cx="48" cy="20" r="3.2" fill="#efffba"/>
+</svg>

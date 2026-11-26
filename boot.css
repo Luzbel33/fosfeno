@@ -1,0 +1,20 @@
+.boot-frame {
+  position:fixed; inset:0; z-index:1000; overflow:auto;
+  display:grid; place-items:center; margin:0; padding:24px; box-sizing:border-box;
+  background:radial-gradient(ellipse at 50% 42%,#253326 0%,#171e19 36%,#101311 74%);
+  color:#f1f4ea; font:15px/1.45 system-ui,sans-serif;
+}
+.boot-frame[hidden],.boot-frame [hidden] { display:none; }
+.boot-lockup { display:grid; justify-items:center; gap:12px; max-width:320px; text-align:center; }
+.boot-mark { width:clamp(64px,17vmin,110px); height:auto; filter:drop-shadow(0 8px 30px #b2f76a28); }
+.boot-name { font-size:clamp(22px,6vmin,38px); line-height:1; font-weight:850; font-style:italic; letter-spacing:.10em; }
+.boot-status { color:#c4cebd; margin:6px 0 0; }
+.boot-track { width:96px; height:2px; overflow:hidden; background:#394635; }
+.boot-track::before {
+  content:""; display:block; width:50%; height:100%;
+  background:#d4fa62; animation:boot-traverse 1.35s ease-in-out infinite alternate;
+}
+.boot-frame[data-failed] .boot-track { display:none; }
+.boot-frame a { color:#d4fa62; text-decoration:underline; text-underline-offset:3px; }
+@keyframes boot-traverse { from { transform:translateX(0); } to { transform:translateX(100%); } }
+@media (prefers-reduced-motion:reduce) { .boot-track::before { animation:none; margin-inline:auto; } }
