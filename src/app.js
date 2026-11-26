@@ -1,6 +1,6 @@
 ;(() => {
   'use strict'
-  const edition = '2.20'
+  const edition = '2.21'
   const blankScore = '// Tu sketch Hydra'
   const $ = (id) => document.getElementById(id)
   const all = (sel, root = document) => Array.from(root.querySelectorAll(sel))
@@ -1703,8 +1703,10 @@
     const compactEdit = layout.opened && !document.body.matches('.preview-focus,.quiet,.projecting')
     // Keep the sketch at the same resolution when the compact inspector opens.
     const rect = (compactEdit ? layout.bench : stage).getBoundingClientRect()
-    const width = external ? projector.innerWidth : rect.width
-    const height = external ? projector.innerHeight : rect.height
+    const mapSize = mappingMode && mappingBench ? mappingDesk()?.size() : null
+    const [width,height] = mapSize || (external ? [projector.innerWidth,projector.innerHeight] : [rect.width,rect.height])
+    // The workbench has no layout box while the surface editor is visible.
+    if (width < 2 || height < 2) return
     if (mappingMode && mappingAspect) {
       const w = Math.min(width, height * mappingAspect)
       engine.resize(Math.max(2, w), Math.max(2, w / mappingAspect))
@@ -1754,8 +1756,8 @@
     if (!surfacePage) {
       if (!layout.layersVisible) layout.setLayersVisible(true)
       changeView('sectors', true)
-      resize()
     }
+    resize()
   }
   function setMapping(on) {
     if (mappingMode === on) return
@@ -1770,7 +1772,7 @@
     else $('openMapping').removeAttribute('aria-current')
     if (on) {
       if (!$('mappingFrame').hasAttribute('src')) $('mappingFrame').src = 'mapeo.html?embedded=1'
-      mappingView(false)
+      mappingView(true)
       mappingDesk()?.activate()
     } else {
       mappingDesk()?.deactivate()
@@ -1792,24 +1794,38 @@
   $('mappingSectors').onclick = () => mappingView(false)
   $('mappingSurface').onclick = () => mappingView(true)
   $('mappingFrame').addEventListener('load', () => {
-    if (mappingMode) mappingDesk()?.activate()
+    if (mappingMode) {
+      mappingDesk()?.activate()
+      resize()
+    }
     else mappingDesk()?.deactivate()
   })
+  $('mappingHideBase').onclick = () => mappingDesk()?.hideBase()
   $('mappingReferenceToggle').onclick = () => {
     drawMappingReference = !drawMappingReference
+    mappingPreviewFrame = undefined
     showMappingReference()
   }
   function showMappingReference() {
     $('mappingProgram').hidden = !mappingMode || mappingBench || mappingPreviewFrame === undefined
-    $('mappingReference').hidden = !mappingMode || mappingBench || !drawMappingReference || !mappingReference
+    const showReference = !!(mappingMode && !mappingBench && drawMappingReference && mappingReference)
+    $('mappingReference').hidden = !showReference
+    document.body.classList.toggle('mapping-reference-on',showReference)
     $('mappingReferenceToggle').hidden = !mappingMode || mappingBench || !mappingReference
     $('mappingReferenceToggle').setAttribute('aria-pressed', String(drawMappingReference))
   }
   window.updateFosfenoMapping = (source, aspect) => {
     mappingReference = source
     mappingAspect = aspect
+    mappingPreviewFrame = undefined
     showMappingReference()
-    if (mappingMode && !mappingBench) resize()
+    if (mappingMode) resize()
+  }
+  window.updateFosfenoMappingFeed = mode => { $('mappingHideBase').hidden = mode!=='full' }
+  window.fosfenoStudioCamera = () => {
+    const source = inputs[0].current
+    const track = source?.kind==='camera' && source.stream.getVideoTracks()[0]
+    return track?.readyState==='live' ? track : null
   }
   window.captureFosfenoMapping = () => packComposition(captureComposition())
   window.restoreFosfenoMapping = async blob => {
@@ -1852,8 +1868,11 @@
     if (resized) { program.width = canvas.width; program.height = canvas.height }
     if (resized || mappingPreviewFrame !== preview.frame) {
       const context = program.getContext('2d')
-      context.fillStyle = '#000'
-      context.fillRect(0, 0, program.width, program.height)
+      context.clearRect(0, 0, program.width, program.height)
+      if ($('mappingReference').hidden) {
+        context.fillStyle = '#000'
+        context.fillRect(0, 0, program.width, program.height)
+      }
       if (!preview.blackout) context.drawImage(preview.canvas, 0, 0, program.width, program.height)
       mappingPreviewFrame = preview.frame
       program.hidden = false

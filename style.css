@@ -1087,12 +1087,13 @@ body:not(.preview-focus) .output-head { display:none; }
 #mappingNav button[aria-pressed=true] { background:#273221; }
 #exitMapping { margin-right:5px; }
 #mappingFrame { display:block; border:0; width:100%; min-height:0; flex:1; background:var(--base); }
-body.mapping-surface :is(.topbar,.workbench,footer) { display:none; }
+body.mapping-surface :is(.topbar,.workbench,#consoleDock) { display:none; }
+#mappingHideBase { margin-inline-start:auto; color:var(--dim); }
 #mappingProgram, #mappingReference {
   position:absolute; inset:0; width:100%; height:100%; object-fit:contain;
   pointer-events:none;
 }
-#mappingReference { opacity:.58; }
+body.mapping-reference-on #mappingProgram { opacity:.42; }
 @media (max-width:550px) {
   #mappingNav { padding-inline:4px; gap:1px; }
   #mappingNav button { min-height:40px; padding-inline:5px; font-size:12px; }

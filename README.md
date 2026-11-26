@@ -4,7 +4,7 @@ Editor de live coding y sintetizador de video con Hydra. El JavaScript del sketc
 
 Al entrar sin un enlace de sketch, Fosfeno genera una pieza con una semilla aleatoria. La semilla aparece en el nombre y en el código. Los borradores se conservan y los enlaces identificados recuperan su pieza. *MULTIVERSE*, de e_e (@eerie_ear), queda en la Biblioteca con el código y la atribución originales. [Abrir el mismo sketch en Hydra](https://hydra.ojack.xyz/?sketch_id=eerie_ear_0) · [Comparación en navegador y límites](docs/paridad-hydra.md)
 
-[Abrir el estudio](https://luzbel33.github.io/fosfeno/abrir.html?v=2.20) · [Abrir Glitch River de Flor de Fuego](https://luzbel33.github.io/fosfeno/abrir.html?v=2.20&sketch_id=flor_2) · [Ver el editor en movimiento](media/fosfeno-demo.mp4)
+[Abrir el estudio](https://luzbel33.github.io/fosfeno/abrir.html?v=2.21) · [Abrir Glitch River de Flor de Fuego](https://luzbel33.github.io/fosfeno/abrir.html?v=2.21&sketch_id=flor_2) · [Ver el editor en movimiento](media/fosfeno-demo.mp4)
 
 ## Tocar una visual
 
@@ -69,9 +69,9 @@ Para usar p5 como entrada, creá `p = new P5()`, dibujá en `p`, conectá `s1.in
 
 ### Mapeo con proyector
 
-**Mapeo** activa la salida calibrada en el mismo Estudio. En **Superficie y pincel**, elegí **Abrir proyector**, mové la ventana a la pantalla extendida y hacé doble clic para mostrarla completa. Con una cámara fija apuntando a la misma superficie, elegí el formato y tocá **Calibrar**. Marcá los centros de las cuatro cruces en orden, en la cámara o en una foto que las muestre. Recalibrá si movés el equipo o cambiás el tamaño de la salida.
+**Mapeo** abre **Superficie y pincel** en el mismo Estudio. Elegí **Conectar cámara** para pintar sobre lo que ve la cámara o cargá una **Foto de referencia**. Si ya conectaste la cámara en el Estudio, Mapeo la toma como referencia. **Superficie** muestra la referencia con tus trazos y recortes. **Composición** muestra qué estás enviando al proyector. Abrí el proyector, mové la ventana a la pantalla extendida y hacé doble clic para mostrarla completa. Elegí el formato y tocá **Calibrar**. Marcá los centros de las cuatro cruces en orden. Recalibrá si movés el equipo o cambiás el tamaño de la salida.
 
-**Sectores y efectos** usa el editor del Estudio. Dibujá sectores libres, triángulos y otras formas en **Nuevo sector**. En cada capa podés combinar operadores, código, biblioteca, archivos, señal y pinceladas. **Referencia** muestra la cámara o foto sobre la visual de edición. En **Superficie y pincel** podés enviar la visual completa, sólo los sectores visibles o pintar por separado. **Editar como sector** lleva un recorte de foto, video o loop al editor Hydra para aplicarle efectos. **Apagón** deja la salida en negro. **Estudio Hydra** sale de Mapeo.
+**Sectores y efectos** usa el editor del Estudio. Dibujá sectores libres, triángulos y otras formas en **Nuevo sector**. En cada capa podés combinar operadores, código, biblioteca, archivos, señal y pinceladas. **Referencia** superpone la composición sobre la cámara o la foto mientras editás. En **Hydra en proyector**, **Sólo sectores** manda las formas dibujadas, **Con fondo** suma el sketch completo y **Apagado** deja los trazos y archivos del mapa. **Quitar fondo Hydra** vuelve a **Sólo sectores**. **Editar como sector** lleva un recorte al editor Hydra para aplicarle efectos. **Apagón** deja la salida en negro. **Estudio Hydra** sale de Mapeo.
 
 **Guardar mapa** guarda una copia local. **Recuperar mapa** carga su código y sus sectores junto al pincel y la calibración. **Descargar** genera un `.fosmap` con el código, los sectores, sus archivos, los trazos y la calibración. **Importar** permite abrirlo en otra computadora. Volvé a conectar las cámaras y las entradas en vivo al recuperar un mapa.
 

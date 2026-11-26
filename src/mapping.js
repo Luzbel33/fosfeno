@@ -1,11 +1,12 @@
 import { formats, identity, pattern, projectionRenderer, projectorToCamera } from './mapping-output.mjs'
-import { blankMap, packMap, unpackMap } from './mapping-project.mjs?v=2.19'
+import { blankMap, packMap, unpackMap } from './mapping-project.mjs?v=2.21'
 
 const $ = id => document.getElementById(id)
 const make = tag => document.createElement(tag)
 const surface = $('mapSurface'), viewport = $('mapViewport'), preview = $('mapPreview')
 const guide = preview.getContext('2d'), reference = $('mapReference')
-const artwork = make('canvas').getContext('2d'), ink = make('canvas').getContext('2d')
+const artwork = make('canvas').getContext('2d'), surfaceArt = make('canvas').getContext('2d')
+const ink = make('canvas').getContext('2d')
 const targets = make('canvas').getContext('2d')
 const studioPass = make('canvas').getContext('2d'), studioMask = make('canvas').getContext('2d')
 const history = [], future = [], media = new Map()
@@ -17,6 +18,7 @@ let projection = null, blackout = false, calibration = null, frozen, lastCamera,
 let dirty = true, clock = window, frame = 0, lastFrame = 0, active = true, loadRevision = 0, previewRevision = 0
 let hydraConnection
 let copiedLayer
+let displayView = 'surface', checkedStudioCamera = false
 
 function status(message, error = false) {
   $('mapStatus').textContent = message || ''
@@ -50,7 +52,12 @@ function showReference() {
   $('mapFreeze').hidden = camera.current?.kind !== 'camera'
   $('mapFreeze').textContent = frozen ? 'Volver a cámara' : 'Congelar vista'
   $('mapFreeze').setAttribute('aria-pressed', String(!!frozen))
-  $('mapEmpty').hidden = !!element || scene.studioMode !== 'off' || !!scene.layers.length ||
+  reference.hidden = displayView==='output' && !calibration
+  const state = $('mapReferenceState')
+  state.textContent = frozen ? 'Cámara congelada' : camera.current?.kind==='camera' ? 'Cámara en vivo' :
+    element ? 'Foto de referencia' : camera.pending ? 'Conectando cámara…' : 'Cámara desconectada'
+  state.dataset.live = !!element && !frozen && camera.current?.kind==='camera'
+  $('mapEmpty').hidden = !!element || displayView==='output' || !!scene.layers.length ||
     tool !== 'select' || !!calibration
 }
 
@@ -60,7 +67,7 @@ const camera = new VisualInput(() => {}, input => {
   const previousReference = lastReference
   if (input?.kind === 'camera') lastReference = 'camera'
   else if (input) lastReference = input.file
-  $('mapCamera').textContent = id || input?.kind === 'camera' ? 'Desconectar cámara' : 'Conectar cámara'
+  $('mapCamera').textContent = input?.kind === 'camera' ? 'Desconectar cámara' : 'Conectar cámara'
   if (input) {
     const element = input.element
     const aspect = clamp((element.videoWidth || element.naturalWidth || element.width) /
@@ -84,6 +91,7 @@ const camera = new VisualInput(() => {}, input => {
     camera.current?.kind === 'camera' ? 'Desconectar cámara' : 'Conectar cámara'
   status(message || referenceNotice)
   referenceNotice = ''
+  showReference()
 })
 let referenceNotice = ''
 
@@ -107,8 +115,14 @@ $('mapCamera').onclick = () => {
     camera.cancel()
     $('mapCamera').textContent = camera.current?.kind === 'camera' ? 'Desconectar cámara' : 'Conectar cámara'
     status('Conexión cancelada.')
+    showReference()
   } else if (camera.current?.kind === 'camera') camera.clear()
-  else camera.open('camera').catch(() => {})
+  else connectReference()
+}
+function connectReference() {
+  const sharedCamera = studioWindow?.fosfenoStudioCamera()
+  selectDisplay('surface')
+  return camera.open('camera',{sharedCamera}).catch(() => {})
 }
 $('mapClearReference').onclick = () => camera.clear()
 $('mapFreeze').onclick = () => {
@@ -135,7 +149,7 @@ function sizeCanvases() {
   viewport.style.setProperty('--map-aspect', scene.aspect)
   const w = Math.round(Math.min(1280, 960 * scene.aspect))
   const h = Math.round(w / scene.aspect)
-  for (const { canvas } of [guide, artwork, ink, studioPass, studioMask]) {
+  for (const { canvas } of [guide, artwork, surfaceArt, ink, studioPass, studioMask]) {
     if (canvas.width === w && canvas.height === h) continue
     canvas.width = w
     canvas.height = h
@@ -166,6 +180,12 @@ function sync() {
     scene.calibration ? 'Calibrado' : 'Sin calibrar · salida directa'
   $('mapState').dataset.aligned = !!scene.calibration && !blackout && !calibration
   $('mapFormatLabel').textContent = scene.format
+  surface.dataset.mapView = calibration ? 'surface' : displayView
+  for (const button of document.querySelectorAll('[data-map-view]')) {
+    button.setAttribute('aria-pressed',String(button.dataset.mapView===surface.dataset.mapView))
+    button.disabled=!!calibration && button.dataset.mapView==='output'
+  }
+  studioWindow?.updateFosfenoMappingFeed(scene.studioMode)
   for (const el of document.querySelectorAll('[data-tool],[data-brush],[data-mask],[data-format],[data-hydra]')) {
     const chosen = el.dataset.tool || el.dataset.brush || el.dataset.mask || el.dataset.format || el.dataset.hydra
     el.setAttribute('aria-pressed', String([tool, brushStyle, layer?.mask, scene.format, scene.studioMode].includes(chosen)))
@@ -564,19 +584,19 @@ function drawMedia(layer, bounds) {
   if (!el || (el instanceof HTMLVideoElement && el.readyState < 2)) return
   const sw = el.videoWidth || el.naturalWidth || el.width
   const sh = el.videoHeight || el.naturalHeight || el.height
-  const w = artwork.canvas.width, h = artwork.canvas.height
+  const w = surfaceArt.canvas.width, h = surfaceArt.canvas.height
   const [x, y, dw, dh] = [bounds[0] * w, bounds[1] * h, bounds[2] * w, bounds[3] * h]
   if (!sw || !sh || !dw || !dh) return
   const scale = Math.max(dw / sw, dh / sh)
   const cw = dw / scale, ch = dh / scale
-  artwork.save()
+  surfaceArt.save()
   if (layer.mask === 'ellipse') {
-    artwork.beginPath()
-    artwork.ellipse(x + dw / 2, y + dh / 2, dw / 2, dh / 2, 0, 0, Math.PI * 2)
-    artwork.clip()
+    surfaceArt.beginPath()
+    surfaceArt.ellipse(x + dw / 2, y + dh / 2, dw / 2, dh / 2, 0, 0, Math.PI * 2)
+    surfaceArt.clip()
   }
-  artwork.drawImage(el, (sw - cw) / 2, (sh - ch) / 2, cw, ch, x, y, dw, dh)
-  artwork.restore()
+  surfaceArt.drawImage(el, (sw - cw) / 2, (sh - ch) / 2, cw, ch, x, y, dw, dh)
+  surfaceArt.restore()
 }
 let maskRegions = [], maskSize = ''
 function drawStudio() {
@@ -608,21 +628,23 @@ function drawStudio() {
 }
 function drawScene() {
   const { width, height } = artwork.canvas
-  artwork.clearRect(0, 0, width, height)
-  drawStudio()
+  surfaceArt.clearRect(0, 0, width, height)
   const stroke = gesture?.kind === 'brush' ? gesture.stroke : null
   for (const id of inkCache.keys()) {
     if (!scene.layers.some(layer => layer.id === id)) inkCache.delete(id)
   }
   for (const layer of scene.layers) {
     if (!layer.visible || layer.opacity === 0) continue
-    artwork.globalAlpha = layer.opacity
-    if (layer.kind === 'ink') artwork.drawImage(inkLayer(layer, gesture?.target === layer.id ? stroke : null), 0, 0)
+    surfaceArt.globalAlpha = layer.opacity
+    if (layer.kind === 'ink') surfaceArt.drawImage(inkLayer(layer, gesture?.target === layer.id ? stroke : null), 0, 0)
     else drawMedia(layer, gesture?.layer === layer ? gestureRect() : layer.rect)
   }
-  artwork.globalAlpha = 1
-  if (stroke && !scene.layers.some(layer => layer.id === gesture.target && layer.visible)) drawStroke(artwork, stroke)
+  surfaceArt.globalAlpha = 1
+  if (stroke && !scene.layers.some(layer => layer.id === gesture.target && layer.visible)) drawStroke(surfaceArt, stroke)
   if (pending && gesture?.kind === 'place') drawMedia(pending, gestureRect())
+  artwork.clearRect(0, 0, width, height)
+  drawStudio()
+  artwork.drawImage(surfaceArt.canvas, 0, 0)
 }
 function drawPreview() {
   const { width, height } = preview
@@ -638,7 +660,8 @@ function drawPreview() {
     }
     return
   }
-  guide.drawImage(artwork.canvas, 0, 0)
+  if (displayView==='surface') guide.drawImage(surfaceArt.canvas, 0, 0)
+  else if (!blackout) guide.drawImage(artwork.canvas, 0, 0)
   const layer = activeLayer()
   const rect = gesture && ['move', 'resize', 'place'].includes(gesture.kind) ? gestureRect() :
     tool === 'select' && layer?.visible ? layer.rect : null
@@ -749,6 +772,7 @@ function startCalibration() {
     showReference()
   }
   setTool('select', false)
+  displayView = 'surface'
   blackout = false
   calibration = []
   sync()
@@ -767,6 +791,7 @@ function filePicker(buttonId, inputId, action) {
 filePicker('mapAddMedia', 'mapMediaFile', placeFile)
 filePicker('mapReferenceFile', 'mapPhotoFile', file => {
   if (!file.type.startsWith('image/')) return status('Elegí una imagen como referencia.', true)
+  selectDisplay('surface')
   return camera.open('file', { file }).catch(() => {})
 })
 let mapTransfer = false
@@ -861,7 +886,12 @@ function chooseBrush(newLayer = false) {
   setTool('brush')
   status('Arrastrá o tocá la superficie para pintar.')
 }
-$('mapStartBrush').onclick = () => chooseBrush()
+function selectDisplay(view) {
+  displayView = view
+  sync()
+}
+for (const button of document.querySelectorAll('[data-map-view]'))
+  button.onclick = () => selectDisplay(button.dataset.mapView)
 $('mapNewInk').onclick = () => chooseBrush(true)
 $('mapBrushColor').oninput = event => {
   const value = event.target.value
@@ -931,7 +961,11 @@ for (const el of document.querySelectorAll('[data-tool],[data-brush],[data-color
   } else if (color) {
     brushColor = $('mapBrushColor').value = color
     $('mapBrushColor').setAttribute('aria-invalid', 'false')
-  } else if (hydra && hydra !== scene.studioMode) apply({ ...scene, studioMode: hydra })
+  } else if (hydra && hydra !== scene.studioMode) {
+    apply({ ...scene, studioMode: hydra })
+    status(hydra==='full' ? 'Fondo Hydra activado en el proyector.' :
+      hydra==='sectors' ? 'Sólo los sectores de Hydra van al proyector.' : 'Señal del Estudio apagada en el proyector.')
+  }
   else if (mask && activeLayer()) editLayer(activeLayer(), { mask })
   else if (format) {
     $('mapFormatChoice').open = false
@@ -976,6 +1010,8 @@ document.addEventListener('keydown', event => {
 
 function deactivate() {
   active = false
+  checkedStudioCamera = false
+  displayView = 'surface'
   if (!clock.closed) clock.cancelAnimationFrame(frame)
   frame = 0
   closeProjection(true)
@@ -985,13 +1021,25 @@ function deactivate() {
   media.clear()
 }
 function activate() {
-  if (active) return
-  active = true
-  updateSources()
-  sync()
-  restartClock()
+  if (!active) {
+    active = true
+    updateSources()
+    sync()
+    restartClock()
+  }
+  if (checkedStudioCamera) return
+  checkedStudioCamera = true
+  restoredDraft.then(() => {
+    if (active && checkedStudioCamera && !camera.current && !camera.pending && studioWindow?.fosfenoStudioCamera()) connectReference()
+  })
 }
 window.fosfenoMapping = { activate, deactivate, openProjection,
+  size: () => [artwork.canvas.width, artwork.canvas.height],
+  hideBase: () => {
+    if (scene.studioMode !== 'full') return
+    apply({ ...scene, studioMode: 'sectors' })
+    status('Fondo Hydra quitado. Los sectores siguen en salida.')
+  },
   preview: () => ({canvas:artwork.canvas, frame:scene.studioMode==='full' && !blackout && hydraVideo.readyState<2 ? 0 : previewRevision, blackout}) }
 window.addEventListener('pagehide', deactivate)
 window.addEventListener('pageshow', event => { if (event.persisted) activate() })
@@ -1000,7 +1048,7 @@ sync()
 updateSources()
 schedule()
 const initial = scene
-studioStore('readonly', store => store.get(mapKey)).then(async blob => {
+const restoredDraft = studioStore('readonly', store => store.get(mapKey)).then(async blob => {
   if (!blob) return
   const saved = await unpackMap(blob)
   if (scene !== initial) return

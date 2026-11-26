@@ -6,8 +6,8 @@
     <meta name="theme-color" content="#101211">
     <title>Fosfeno · Mapeo</title>
     <link rel="icon" href="assets/mark.svg">
-    <link rel="stylesheet" href="style.css?v=2.19">
-    <link rel="stylesheet" href="mapping.css?v=2.19">
+    <link rel="stylesheet" href="style.css?v=2.21">
+    <link rel="stylesheet" href="mapping.css?v=2.21">
     <script>
       if (window === window.parent) {
         const url = new URL('./', location.href)
@@ -18,7 +18,14 @@
   </head>
   <body class="mapping">
     <header class="map-header">
-      <div class="map-brand"><h1>Superficie y pincel</h1></div>
+      <h1 class="sr-only">Superficie y pincel</h1>
+      <div class="map-controls map-view-bar">
+        <div class="map-controls map-view-choice" role="group" aria-label="Vista de edición">
+          <button data-map-view="surface" type="button" aria-pressed="true">Superficie</button>
+          <button data-map-view="output" type="button" aria-pressed="false">Composición</button>
+        </div>
+        <button id="mapCamera" type="button">Conectar cámara</button>
+      </div>
       <div class="map-output-actions">
         <button id="mapBlackout" type="button" aria-pressed="false" title="Poner el proyector en negro">Apagón</button>
         <button id="mapOutput" type="button" class="primary">Abrir proyector</button>
@@ -59,9 +66,8 @@
             <div id="mapReference" aria-hidden="true"></div>
             <canvas id="mapPreview" aria-label="Vista de la superficie. Los trazos y recortes aparecen sobre esta imagen."></canvas>
             <div id="mapEmpty" class="map-empty">
-              <strong>La superficie es tu lienzo</strong>
-              <span>Conectá la cámara o empezá a pintar.</span>
-              <button id="mapStartBrush" type="button">Elegir pincel</button>
+              <strong>Sin cámara de referencia</strong>
+              <span>Conectá una cámara o elegí una foto.</span>
             </div>
           </div>
         </div>
@@ -71,6 +77,7 @@
           <button id="mapCancel" type="button">Cancelar</button>
         </div>
         <div class="map-statusbar">
+          <span id="mapReferenceState" class="map-reference-state">Cámara desconectada</span>
           <span id="mapState" class="map-state">Sin calibrar</span>
           <p id="mapStatus" role="status"></p>
         </div>
@@ -87,7 +94,6 @@
             <p>También podés fotografiar las cruces y cargar la foto como referencia. Recalibrá si movés el equipo.</p>
           </div>
           <div class="map-controls map-inputs">
-            <button id="mapCamera" type="button">Conectar cámara</button>
             <button id="mapReferenceFile" type="button">Foto de referencia</button>
             <button id="mapClearReference" type="button" hidden>Quitar referencia</button>
             <button id="mapFreeze" type="button" aria-pressed="false" hidden>Congelar vista</button>
@@ -106,10 +112,13 @@
               </div>
             </details>
           </div>
-          <div class="map-controls map-feed" role="group" aria-label="Qué enviar desde el Estudio Hydra">
-            <button type="button" data-hydra="full" aria-pressed="true">Visual completa</button>
-            <button type="button" data-hydra="sectors" aria-pressed="false">Sólo sectores</button>
-            <button type="button" data-hydra="off" aria-pressed="false">Sin Hydra</button>
+        </section>
+        <section class="map-section" aria-labelledby="mapFeedHeading">
+          <div class="map-title"><h2 id="mapFeedHeading">Hydra en proyector</h2></div>
+          <div class="map-controls map-feed" role="group" aria-labelledby="mapFeedHeading">
+            <button type="button" data-hydra="sectors" aria-pressed="true">Sólo sectores</button>
+            <button type="button" data-hydra="full" aria-pressed="false">Con fondo</button>
+            <button type="button" data-hydra="off" aria-pressed="false">Apagado</button>
           </div>
         </section>
         <section class="map-section map-layer-section">
@@ -141,7 +150,7 @@
     <input id="mapPhotoFile" type="file" accept="image/*" hidden>
     <input id="mapProjectFile" type="file" accept=".fosmap,application/octet-stream" hidden>
     <script src="src/studio-storage.js"></script>
-    <script src="src/visual-input.js?v=2.19"></script>
-    <script type="module" src="src/mapping.js?v=2.19" onerror="document.getElementById('mapStatus').textContent='No se pudo cargar Mapeo. Abrí Fosfeno por localhost o HTTPS y recargá.'"></script>
+    <script src="src/visual-input.js?v=2.21"></script>
+    <script type="module" src="src/mapping.js?v=2.21" onerror="document.getElementById('mapStatus').textContent='No se pudo cargar Mapeo. Abrí Fosfeno por localhost o HTTPS y recargá.'"></script>
   </body>
 </html>

@@ -6,7 +6,7 @@ const number = (value, min, max) => Number.isFinite(value) && value >= min && va
 const point = value => Array.isArray(value) && value.length === 2 && value.every(n => number(n, 0, 1))
 const mediaType = value => typeof value === 'string' && /^(image|video)\//.test(value)
 const studioModes = ['full', 'sectors', 'off']
-export const blankMap = { format: '16:9', aspect: 16 / 9, calibration: null, layers: [], studioMode: 'full' }
+export const blankMap = { format: '16:9', aspect: 16 / 9, calibration: null, layers: [], studioMode: 'sectors' }
 
 export function packMap({ studio, ...map }) {
   const files = []
@@ -69,5 +69,5 @@ export async function unpackMap(blob) {
       mediaRole: layer.mediaRole === 'loop' ? 'loop' : undefined }
   })
   return { format: map.format, aspect: map.aspect, calibration, layers, studio,
-    studioMode: map.studioMode ?? (layers.length ? 'off' : 'full') }
+    studioMode: map.studioMode ?? 'off' }
 }

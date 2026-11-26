@@ -107,7 +107,12 @@ async function prepareVisual(input, choice, file, signal) {
   input.element = video
   video.playsInline = video.muted = true
   video.loop = !!file
-  if (input.kind === 'camera') await acquireCamera(choice, input, signal)
+  if (input.kind === 'camera') {
+    if (input.sharedCamera?.readyState === 'live') {
+      // The mapper owns this clone. Disconnecting its reference leaves s0 live.
+      await claimStream(Promise.resolve(new MediaStream([input.sharedCamera.clone()])), input, signal)
+    } else await acquireCamera(choice, input, signal)
+  }
   else if (input.kind === 'peer') await claimStream(input.receive(signal), input, signal)
   else if (input.kind === 'screen') {
     if (!navigator.mediaDevices?.getDisplayMedia)
@@ -226,11 +231,11 @@ class VisualInput {
       throw err
     }
   }
-  async open(kind, { choice, file, role, params, nativeSize = false, captureAudio = true, receive } = {}) {
+  async open(kind, { choice, file, role, params, nativeSize = false, captureAudio = true, receive, sharedCamera } = {}) {
     this.cancel()
     const request = new AbortController()
     const { signal } = request
-    const input = { kind, file, role, params, nativeSize, captureAudio, receive }
+    const input = { kind, file, role, params, nativeSize, captureAudio, receive, sharedCamera }
     this.pending = request
     this.report(
       kind === 'camera'

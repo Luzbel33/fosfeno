@@ -4,10 +4,10 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
     <meta name="theme-color" content="#101211" />
-    <title>Fosfeno 2.20 — Hydra en vivo</title>
+    <title>Fosfeno 2.21 — Hydra en vivo</title>
     <link rel="icon" href="assets/mark.svg" />
     <link rel="stylesheet" href="vendor/codemirror/lib/codemirror.css" />
-    <link rel="stylesheet" href="style.css?v=2.19" />
+    <link rel="stylesheet" href="style.css?v=2.21" />
   </head>
   <body>
     <header class="topbar">
@@ -31,11 +31,12 @@
     </header>
     <nav id="mappingNav" aria-label="Herramientas de mapeo" hidden>
       <button id="exitMapping" type="button">← Estudio Hydra</button>
-      <button id="mappingSectors" type="button" aria-pressed="true">Sectores y efectos</button>
-      <button id="mappingSurface" type="button" aria-pressed="false">Superficie y pincel</button>
+      <button id="mappingSurface" type="button" aria-pressed="true">Superficie y pincel</button>
+      <button id="mappingSectors" type="button" aria-pressed="false">Sectores y efectos</button>
       <button id="mappingReferenceToggle" type="button" aria-pressed="true" hidden>Referencia</button>
+      <button id="mappingHideBase" type="button" hidden>Quitar fondo Hydra</button>
     </nav>
-    <iframe id="mappingFrame" title="Calibración y pincel de mapeo" hidden></iframe>
+    <iframe id="mappingFrame" title="Calibración y pincel de mapeo" allow="camera; fullscreen" hidden></iframe>
     <main class="workbench">
       <section class="output-area" id="previewArea" aria-labelledby="outputTitle">
         <div class="output-head">
@@ -62,8 +63,8 @@
             height="600"
             aria-label="Salida del sintetizador Hydra"
           ></canvas>
-          <canvas id="mappingProgram" aria-hidden="true" hidden></canvas>
           <canvas id="mappingReference" aria-hidden="true" hidden></canvas>
+          <canvas id="mappingProgram" aria-hidden="true" hidden></canvas>
           <canvas id="sectorGuide" hidden tabindex="0" aria-label="Seleccionar, mover o dibujar sectores sobre la visual"></canvas>
           <span id="touchGuideHint" aria-hidden="true"></span>
           <div id="failure" hidden role="alert"></div>
@@ -450,7 +451,7 @@
     <script src="src/sketches.js?v=2.19"></script>
     <script src="src/engine.js?v=2.16"></script>
     <script src="src/media.js?v=2.16"></script>
-    <script src="src/visual-input.js?v=2.19"></script>
+    <script src="src/visual-input.js?v=2.21"></script>
     <script src="src/studio-storage.js"></script>
     <script src="src/sectors.js?v=2.19"></script>
     <script src="src/sector-program.js?v=2.16"></script>
@@ -460,6 +461,6 @@
     <script src="src/compositions.js?v=2.19"></script>
     <script src="src/code-guide.js?v=2.16"></script>
     <script src="src/operator-editor.js?v=2.16"></script>
-    <script src="src/app.js?v=2.20"></script>
+    <script src="src/app.js?v=2.21"></script>
   </body>
 </html>
