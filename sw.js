@@ -1,6 +1,6 @@
 // Bump the asset version when publishing a new edition of the cabina.
 const prefix = 'fosfeno-' + new URL(self.registration.scope).pathname + '-'
-const cacheName = prefix + 'v3.1.7'
+const cacheName = prefix + 'v3.1.8'
 const files = [
   'index.html',
   'abrir.html',
@@ -41,7 +41,7 @@ const files = [
   'src/studio-stack.js?v=3.1',
   'src/projector-display.js?v=3.1',
   'src/projector-code.js?v=3.1',
-  'src/app.js?v=3.1.7',
+  'src/app.js?v=3.1.8',
   'src/score-tools.js?v=3.1',
   'src/sectors.js?v=3.1',
   'src/sector-program.js?v=3.1',
@@ -67,9 +67,9 @@ const files = [
   'vendor/codemirror/addon/edit/matchbrackets.js',
   'vendor/codemirror/addon/comment/comment.js',
   'vendor/beautify/beautify.min.js',
-  'assets/fosfeno-icon.png?v=3.1.7',
-  'assets/apple-touch-icon.png?v=3.1.7',
-  'boot.css?v=3.1.7',
+  'assets/fosfeno-icon.png?v=3.1.8',
+  'assets/apple-touch-icon.png?v=3.1.8',
+  'boot.css?v=3.1.8',
   'assets/barlow-condensed-bold.ttf',
   'assets/space-mono.ttf',
   'LICENSE',
