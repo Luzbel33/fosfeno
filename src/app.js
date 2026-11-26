@@ -1,6 +1,6 @@
 ;(() => {
   'use strict'
-  const edition = '3.1.2'
+  const edition = '3.1.3'
   const blankScore = '// Tu sketch Hydra'
   const $ = (id) => document.getElementById(id)
   const all = (sel, root = document) => Array.from(root.querySelectorAll(sel))
@@ -1284,7 +1284,8 @@
     if (mappingBench) mappingView(false)
     if (layout.wide.matches && next==='sectors') {
       showLayers(true)
-      $('newSector').focus({preventScroll:true})
+      const selected=keepStackItemVisible() || $('newSector')
+      selected.focus({preventScroll:true})
       return
     }
     if (layout.wide.matches) layout.setInspectorVisible(true)

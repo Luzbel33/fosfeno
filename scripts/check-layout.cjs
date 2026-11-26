@@ -115,10 +115,10 @@ async function main() {
       const footer = await id('consoleDock').boundingBox()
       const top = await page.locator('.topbar').boundingBox()
       const wide = width>=1180 && height>=610
+      assert.ok(await id('backToLayers').isVisible(),'Pila is available in every layout')
       if (wide) {
         const mix = await id('layerDesk').boundingBox(), code = await id('editorPage').boundingBox()
         assert.ok(mix && !code && mix.x+mix.width<=original.x,'start with the stack and a large monitor')
-        assert.equal(await id('backToLayers').isVisible(),false,'only show the opener when Sectores is closed')
         assert.ok(await id('layerDesk').isVisible())
         await id('closeSectors').click()
         assert.equal(await id('backToLayers').getAttribute('aria-expanded'),'false')
@@ -126,7 +126,7 @@ async function main() {
         assert.ok((await id('stage').boundingBox()).width>original.width)
         await id('backToLayers').click()
         assert.equal(await id('backToLayers').getAttribute('aria-expanded'),'true')
-        assert.equal(await id('backToLayers').isVisible(),false)
+        assert.equal(await id('backToLayers').isVisible(),true)
         assert.deepEqual(await id('stage').boundingBox(),original)
       }
       const topControls = '#studioNav button:visible'
@@ -197,7 +197,7 @@ async function main() {
       assert.ok(last.y>=inside.y-1 && last.y+last.height<=inside.y+inside.height+2,'last definition '+width)
       await audit('guide '+width)
       await id('closeHelp').click()
-      await openStudio(page,'code')
+      await openStudio(page,'base')
       const editStage = await id('stage').boundingBox()
       if (compact && !(width>=551 && width>height)) {
         const editor = await id('editorPage').boundingBox()
@@ -227,7 +227,7 @@ async function main() {
       if (wide) {
         await id('signalOpen').click()
         assert.ok(await page.locator('[data-pane=audio]').isVisible())
-        await openStudio(page,'code')
+        await openStudio(page,'base')
         assert.ok(await id('editorPage').isVisible() && !await id('panel').isVisible())
         assert.deepEqual(await id('stage').boundingBox(),editStage,'Code replaces Audio in the inspector')
       }

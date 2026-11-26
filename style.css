@@ -1171,7 +1171,6 @@ body.mapping-reference-on #mappingProgram { opacity:.42; }
 #studioNav :is(button, a)[aria-current=true] {
   border-color:var(--green); color:var(--text); background:#22291d;
 }
-.three-pane:not(.layers-collapsed) #backToLayers { display:none; }
 #closeTools {
   align-self:flex-end; flex:none; margin:2px 8px 0; padding:0 6px;
   min-height:29px; color:var(--dim); font-size:12px;
