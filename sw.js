@@ -1,6 +1,6 @@
 // Bump the asset version when publishing a new edition of the cabina.
 const prefix = 'fosfeno-' + new URL(self.registration.scope).pathname + '-'
-const cacheName = prefix + 'v3.1'
+const cacheName = prefix + 'v3.1.1'
 const files = [
   'index.html',
   'abrir.html',
@@ -41,7 +41,7 @@ const files = [
   'src/studio-stack.js?v=3.1',
   'src/projector-display.js?v=3.1',
   'src/projector-code.js?v=3.1',
-  'src/app.js?v=3.1',
+  'src/app.js?v=3.1.1',
   'src/score-tools.js?v=3.1',
   'src/sectors.js?v=3.1',
   'src/sector-program.js?v=3.1',
@@ -50,7 +50,7 @@ const files = [
   'src/layout.js?v=3.1',
   'src/compositions.js?v=3.1',
   'src/code-guide.js?v=3.1',
-  'src/context-code.js?v=3.1',
+  'src/context-code.js?v=3.1.1',
   'src/operator-editor.js?v=3.1',
   'src/visual-parameters.js?v=3.1',
   'src/visual-preview.js?v=3.1',

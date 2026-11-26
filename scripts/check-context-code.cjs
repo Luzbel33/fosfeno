@@ -45,6 +45,8 @@ async function main() {
     await codeTab.click();assert.equal(await scoped(),green)
     await option(/Fondo · Vacío/);assert.equal(await id('baseCodeBox').isVisible(),true)
     assert.equal(await p.evaluate(()=>cm.getValue().trim()),'')
+    await option(/Mezcla principal.*Tinta de prueba$/)
+    assert.equal(await p.evaluate(()=>fosfenoStack.snapshot().selection.kind),'effect')
     await codeTab.click();assert.equal(await scoped(),green)
     const refs=await p.evaluate(async()=>{
       const stack=window.fosfenoStack

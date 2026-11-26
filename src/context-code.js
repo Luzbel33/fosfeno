@@ -1,8 +1,8 @@
 // The background editor owns the main Hydra runtime. Other programs are compiled
 // in SectorProgram, where outputs, operator definitions and undo belong to the layer.
 class StudioCodeBrowser {
-  constructor({base,desk,stack,baseInfo,signal,project,live,returnMap,writeEffectCode}) {
-    Object.assign(this,{base,desk,stack,baseInfo,signal,project,live,writeEffectCode})
+  constructor({base,desk,stack,baseInfo,signal,project,live,returnMap,writeEffectCode,select}) {
+    Object.assign(this,{base,desk,stack,baseInfo,signal,project,live,writeEffectCode,select})
     const $=id=>document.getElementById(id)
     this.page=$('editorPage'); this.box=$('contextCodeBox'); this.list=$('codeDestinationList')
     this.menu=$('codeDestinations'); this.button=$('codeDestination'); this.status=$('contextCodeStatus')
@@ -89,17 +89,18 @@ class StudioCodeBrowser {
     return entries
   }
   preferred(entries,ref) {
-    if (this.external) return this.external
-    if (!ref || ref.kind==='base') return entries[0]
-    const same=entries.filter(e=>e.key!=='base' && e.ref.sectorId===ref.sectorId)
+    if (this.external && ref?.language==='json') return this.external
+    const base=entries.find(e=>e.key==='base')
+    if (!ref || ref.kind==='base') return base
+    const same=entries.filter(e=>e.key!=='base' && e.ref?.sectorId===ref.sectorId)
     const direct=same.filter(e=>e.ref.layerId===(ref.layerId ?? 0))
     const exact=direct.find(e=>e.ref.kind===ref.kind && (ref.kind!=='effect' ||
       (ref.effectId ? e.ref.effectId===ref.effectId : e.ref.index===ref.index)))
     if (exact && !['group','layer','sector'].includes(ref.kind)) return exact
     const scope=ref.kind==='sector'?same:ref.kind==='group'?[...direct,...same.filter(e=>e.groupId===ref.layerId)]:direct
     const populated=items=>items.find(e=>e.format==='js' && !e.empty) || items.find(e=>['source','paint','effect'].includes(e.ref.kind))
-    return populated(scope) || (!ref.sectorId && (this.baseInfo().present?entries[0]:populated(entries.slice(1)) || entries[0])) ||
-      scope.find(e=>e.format==='json') || scope[0] || entries[0]
+    return populated(scope) || (!ref.sectorId && (this.baseInfo().present?base:populated(entries.filter(e=>e.ref && e!==base)) || base)) ||
+      scope.find(e=>e.format==='json') || scope[0] || base
   }
   open(ref,fromMap=false) {
     this.flush(); this.back.hidden=!fromMap
@@ -110,7 +111,7 @@ class StudioCodeBrowser {
     this.show(this.preferred(entries,ref))
   }
   refresh() {
-    if (!this.current || this.external || this.page.hidden) return
+    if (!this.current || this.current.key==='map-object' || this.page.hidden) return
     const entries=this.describe(), previous=this.current
     let next=entries.find(e=>e.key===previous.key)
     if (!next || !this.chosen) next=this.preferred(entries,this.scope)
@@ -149,10 +150,18 @@ class StudioCodeBrowser {
       (this.current.hint || '')+(this.desk.dirty && !this.live()?' Pendiente de enviar.':'')
   }
   fill(entries=this.describe()) {
-    this.list.replaceChildren(...entries.map(entry=>{
+    const scope=this.scope
+    const near=entry=>scope && entry.ref && scope.sectorId===entry.ref.sectorId &&
+      (scope.kind==='sector' || scope.layerId===entry.ref.layerId || scope.kind==='group' && scope.layerId===entry.groupId)
+    const sorted=[...entries.filter(near),...entries.filter(e=>!near(e))]
+    this.list.replaceChildren(...sorted.map(entry=>{
       const b=document.createElement('button');b.type='button';b.textContent=entry.name
       b.setAttribute('aria-pressed',String(this.current?.key===entry.key))
-      b.onclick=()=>{this.flush();this.chosen=true;this.show(entry);this.menu.open=false;this.button.focus()}
+      b.onclick=()=>{
+        this.flush()
+        if (entry.ref) {this.select(entry.ref);this.scope=entry.ref}
+        this.chosen=true;this.show(entry);this.menu.open=false;this.button.focus()
+      }
       return b
     }))
   }

@@ -1,6 +1,6 @@
 ;(() => {
   'use strict'
-  const edition = '3.1'
+  const edition = '3.1.1'
   const blankScore = '// Tu sketch Hydra'
   const $ = (id) => document.getElementById(id)
   const all = (sel, root = document) => Array.from(root.querySelectorAll(sel))
@@ -461,12 +461,26 @@
     delete effect.generator
   }
   codeBrowser=new StudioCodeBrowser({base:cm,desk:sectors,stack:studioStack,baseInfo:getStudioBase,live:()=>live,writeEffectCode,
-    signal:()=>inputs[0].current,project:()=>projectorCode.refresh(),returnMap:()=>{if(mappingMode) mappingView(true)}})
+    signal:()=>inputs[0].current,project:()=>projectorCode.refresh(),returnMap:()=>{if(mappingMode) mappingView(true)},
+    select:ref=>{
+      openingCode=true
+      try {
+        studioStack.select(ref)
+        sectors.refresh()
+        codeSelection=JSON.stringify(studioStack.active())
+      } finally { openingCode=false }
+    }})
   function openSelectionCode(ref) {
     const fromMap=mappingMode && mappingBench
     ref ??= (fromMap && mappingDesk()?.codeTarget?.()) || studioStack.active()
     openingCode=true
     try {
+      if (ref.language!=='json') {
+        try { studioStack.resolve(ref) }
+        catch (error) { notify(error.message); return }
+        studioStack.select(ref)
+        sectors.refresh()
+      }
       if (fromMap) mappingView(false)
       changeView('code',true,true)
       codeBrowser.open(ref,fromMap)
