@@ -1,4 +1,4 @@
-import { makePose, poseAnimated, poseAt } from './pose-3d.mjs?v=3.0'
+import { makePose, poseAnimated, poseAt } from './pose-3d.mjs?v=3.1'
 
 function readManifest(bytes) {
   const bad = () => { throw new Error('Elegí un .glb binario válido exportado como glTF 2.0.') }
@@ -17,6 +17,8 @@ function readManifest(bytes) {
   }
   if (spec.extensionsRequired?.some(id=>['KHR_draco_mesh_compression','EXT_meshopt_compression','KHR_texture_basisu'].includes(id)))
     throw new Error('Exportá el .glb sin compresión Draco, Meshopt ni texturas KTX2.')
+  const names=items=>({total:items.length,names:items.slice(0,24).map((item,i)=>item.name?.slice(0,120) || '#'+i)})
+  return {meshes:names(spec.meshes),materials:names(spec.materials || []),animations:names(spec.animations || [])}
 }
 
 let studio, users=0
@@ -53,7 +55,7 @@ function disposeMeshes(root) {
 export async function openModel(file, signal) {
   const bytes=await file.arrayBuffer()
   signal.throwIfAborted()
-  readManifest(bytes)
+  const summary=readManifest(bytes)
   const T=await import('../vendor/three/three-gltf-0.187.0.min.mjs')
   signal.throwIfAborted()
   const manager=new T.LoadingManager()
@@ -122,6 +124,6 @@ export async function openModel(file, signal) {
       }
       return output.canvas
     }
-    return {frame,dispose}
+    return {frame,dispose,summary}
   } catch (error) { dispose(); throw error }
 }

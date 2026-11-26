@@ -2,6 +2,7 @@ const assert = require('node:assert/strict')
 const { readFile, stat } = require('node:fs/promises')
 const { join, posix } = require('node:path')
 const { chromium } = require('playwright')
+const { openStudio } = require('./studio-nav.cjs')
 
 const base = new URL(process.argv[2] || 'http://127.0.0.1:8736/')
 const sampleNames = ['Iris de marea','Umbral de ámbar','Deriva abisal']
@@ -9,6 +10,7 @@ const read = path => readFile(join(__dirname,'..',path),'utf8')
 
 async function assetAudit() {
   const sw = await read('sw.js')
+  const edition = sw.match(/const cacheName = prefix \+ 'v([^']+)'/)[1]
   const list = sw.match(/const files = \[([\s\S]+?)\n\]/)[1]
   const manifest = [...list.matchAll(/'([^']+)'/g)].map(([,path])=>path)
   assert.equal(new Set(manifest).size,manifest.length,'URLs únicas en el manifiesto.')
@@ -29,7 +31,7 @@ async function assetAudit() {
       include(posix.join(posix.dirname(local),target.trim().replace(/^['"]|['"]$/g,'')))
   }
   for (const [,asset] of (await read('src/mapping-samples.mjs')).matchAll(/\b(?:path|preview):'([^']+)'/g)) include(asset)
-  return manifest
+  return {manifest,edition}
 }
 
 async function openMapping(page) {
@@ -47,8 +49,37 @@ async function assertMusic(page) {
   await page.locator('#musicStop').click()
   await page.waitForFunction(()=>window.musicBeat()===0 && window.a.fft.every(band=>band===0))
 }
+async function assertContextEditors(page) {
+  await openStudio(page,'library')
+  await page.locator('[data-shelf=sketches]').click()
+  const visual=page.locator('.library-row').filter({has:page.getByText('Cintas de moiré',{exact:true})})
+  await visual.locator('[data-action=editVisual]').click()
+  const dialog=page.locator('#visualParameters')
+  await dialog.waitFor()
+  await dialog.locator('#visualParamSearch').fill('Saturación')
+  const number=dialog.locator('input[type=number]').first()
+  assert.equal(await number.inputValue(),'1.9')
+  await number.fill('.33')
+  await dialog.locator('#visualParamSource summary').click()
+  assert.match(await dialog.locator('#visualVariantCode').inputValue(),/\.saturate\(0\.33\)/)
+  await dialog.locator('#cancelVisualParams').click()
+
+  await openStudio(page,'sectors')
+  const ref=await page.evaluate(()=>fosfenoStack.geometry.create('Rectángulo',[[.14,.2],[.42,.2],[.42,.6],[.14,.6]],'#90ff62'))
+  const layerCode='return base().rotate(0.37)'
+  await page.evaluate(ref=>fosfenoStack.command('select',ref),ref)
+  await page.locator('#sectorCodeToggle').click()
+  await page.locator('#sectorCode').fill(layerCode)
+  await page.locator('#sectorApplyCode').click()
+  const node=page.locator('#sector-tree-'+ref.sectorId+' [data-stack-item]').filter({hasText:'Código Hydra'}).first()
+  await node.click({button:'right'})
+  await page.locator('#stackContextMenu [data-action=code]').click()
+  const editor=page.locator('#contextCodeBox .CodeMirror')
+  await editor.waitFor()
+  assert.equal(await editor.evaluate(element=>element.CodeMirror.getValue()),layerCode)
+}
 async function main() {
-  const manifest=await assetAudit()
+  const {manifest,edition}=await assetAudit()
   const browser=await chromium.launch({channel:'chromium',args:['--use-angle=d3d11','--enable-unsafe-swiftshader']})
   try {
     const context=await browser.newContext({viewport:{width:1440,height:900}})
@@ -56,7 +87,8 @@ async function main() {
     context.on('page',page=>page.on('pageerror',error=>errors.push(error.message)))
     const warm=await context.newPage()
     await warm.goto(new URL('abrir.html',base).href)
-    await warm.waitForFunction(async()=>!!(await navigator.serviceWorker.ready).active && !!navigator.serviceWorker.controller)
+    await warm.waitForFunction(async edition=>!!(await navigator.serviceWorker.ready).active &&
+      new URL(navigator.serviceWorker.controller?.scriptURL || location.href).searchParams.get('v')===edition,edition)
     const cached=await warm.evaluate(async paths=>{
       const scope = (await navigator.serviceWorker.ready).scope
       const names = await caches.keys()
@@ -118,8 +150,9 @@ async function main() {
     await page.reload()
     await page.waitForFunction(()=>!!window.cm?.getValue() && !!navigator.serviceWorker.controller)
     await assertMusic(page)
+    await assertContextEditors(page)
     assert.deepEqual(errors,[])
-    console.log('Sin conexión en un contexto nuevo: recarga desde abrir.html, compositor, 3 muestras, .glb renderizado con su licencia, música y FFT tras recarga. '+manifest.length+' URLs cacheadas con clave exacta.')
+    console.log('Sin conexión en un contexto nuevo: 3 muestras, .glb y su licencia, música y FFT tras recarga, inspector numérico y Código por selección. '+manifest.length+' URLs cacheadas con clave exacta.')
   } finally {await browser.close()}
 }
 main().catch(error=>{console.error(error);process.exitCode=1})

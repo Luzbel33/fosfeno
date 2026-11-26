@@ -92,7 +92,7 @@ async function main() {
       const bytes=new Uint8Array(20+manifest.length),h=new DataView(bytes.buffer)
       for(const [i,v] of [0x46546c67,2,bytes.length,manifest.length,0x4e4f534a].entries()) h.setUint32(i*4,v,true)
       bytes.set(new TextEncoder().encode(manifest),20)
-      const {openModel}=await import('./src/model-source.mjs?v=3.0')
+      const {openModel}=await import('./src/model-source.mjs?v=3.1')
       try { await openModel(new File([bytes],'externo.glb'),new AbortController().signal); return 'ok' } catch(e) {return e.message}
     })
     assert.match(rejection,/externos/); assert.deepEqual(external,[])

@@ -1,7 +1,7 @@
-import { formats, projectorToCamera } from './mapping-output.mjs?v=3.0'
-import { validQuad } from './mapping-warp.mjs?v=3.0'
-import { readPose } from './pose-3d.mjs?v=3.0'
-import { packSolid, unpackSolid } from './mapping-solids.mjs?v=3.0'
+import { formats, projectorToCamera } from './mapping-output.mjs?v=3.1'
+import { validQuad } from './mapping-warp.mjs?v=3.1'
+import { readPose } from './pose-3d.mjs?v=3.1'
+import { packSolid, unpackSolid } from './mapping-solids.mjs?v=3.1'
 
 const magic = 'FOSMAP1\n'
 const invalid = () => { throw new Error('El archivo .fosmap está dañado o usa un formato incompatible.') }

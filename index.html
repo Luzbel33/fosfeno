@@ -4,12 +4,12 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
     <meta name="theme-color" content="#101211" />
-    <title>Fosfeno 3.0 — Hydra en vivo</title>
+    <title>Fosfeno 3.1 — Hydra en vivo</title>
     <link rel="icon" href="assets/mark.svg" />
     <link rel="stylesheet" href="vendor/codemirror/lib/codemirror.css" />
-    <link rel="stylesheet" href="style.css?v=3.0.2" />
-    <link rel="stylesheet" href="src/stack.css?v=3.0" />
-    <link rel="stylesheet" href="src/music.css?v=3.0" />
+    <link rel="stylesheet" href="style.css?v=3.1" />
+    <link rel="stylesheet" href="src/stack.css?v=3.1" />
+    <link rel="stylesheet" href="src/music.css?v=3.1" />
   </head>
   <body>
     <header class="topbar">
@@ -83,6 +83,12 @@
         <button id="closeTools" hidden><i data-icon="close"></i>Cerrar panel</button>
         <p id="layerIssue" class="layer-issue" role="status" hidden></p>
         <section data-viewpane="code" id="editorPage">
+          <div class="code-destinations">
+            <details id="codeDestinations"><summary id="codeDestination" aria-label="Elegir código de la composición">Fondo</summary>
+              <div id="codeDestinationList" role="group" aria-label="Código y configuración de la pila"></div>
+            </details>
+            <button id="codeReturnMap" type="button" hidden>Volver a Mapeo</button>
+          </div>
           <div class="fileline">
             <button class="help-key" aria-label="Ayuda y comentarios del código" data-help="codigo">?</button
             ><input id="scoreName" aria-label="Nombre del sketch" maxlength="85" /><button
@@ -101,9 +107,11 @@
               <i data-icon="download"></i>
             </button>
           </div>
-          <div class="codebox">
+          <div class="codebox" id="baseCodeBox">
             <textarea id="code" aria-label="Código JavaScript de Hydra" spellcheck="false"></textarea>
           </div>
+          <div class="codebox" id="contextCodeBox" hidden><textarea id="contextCode" spellcheck="false"></textarea></div>
+          <div id="contextCodeStatus" class="status" role="status" hidden></div>
           <div id="numberRack" class="number-rack" hidden>
             <label for="tune">Afinar número</label><input id="tune" type="range" /><output
               for="tune"
@@ -164,7 +172,7 @@
               <button data-shelf="projects" aria-controls="projectLibrary" aria-pressed="false">Proyectos</button>
             </nav>
           </div>
-          <p data-guide="biblioteca" hidden>De fondo reemplaza el sketch principal. En capa asigna un sketch a la selección. Mezclar lo combina con lo que ya hay. Elegí la fuente o el efecto en la pila para modificarlo.</p>
+          <p data-guide="biblioteca" hidden>Editar abre los parámetros de la visual. Probá los cambios en la vista previa y elegí aplicarlos o guardar una variante. De fondo reemplaza el sketch principal. En capa lo asigna a la selección. Mezclar lo combina con lo que ya hay.</p>
           <div data-collection="sketches" id="shelfSketches">
             <input type="search" id="findScore" aria-label="Buscar visuales por nombre o autor" placeholder="Buscar visual o autor…">
             <div class="section-line"><h3>Mis sketches</h3>
@@ -180,7 +188,7 @@
           </div>
           <div class="generator" data-collection="seed" id="shelfSeed" hidden>
             <div class="seedline">
-              <label>Semilla<input id="seed" autocomplete="off" inputmode="numeric" placeholder="Aleatoria"></label>
+              <label>Semilla<input id="seed" type="text" autocomplete="off" inputmode="decimal" spellcheck="false" placeholder="Ej. -12,375" title="Admite enteros largos y decimales con coma o punto. Vacía se sortea."></label>
               <button type="button" id="randomizeSeed" class="outline" title="Sortear otro número conservando la simetría"><i data-icon="shuffle" aria-hidden="true"></i>Aleatoria</button>
               <output id="seedRollStatus" class="sr-only" aria-live="polite"></output>
             </div>
@@ -220,6 +228,7 @@
             <div class="base-heading"><h3 id="baseHeading">Fondo</h3><span id="baseStatus"></span></div>
             <strong id="baseTitle"></strong>
             <div class="base-actions">
+              <button id="baseParameters" type="button" hidden><i data-icon="sliders"></i>Parámetros</button>
               <button id="baseVisibility" type="button" aria-pressed="true"><i data-icon="eye"></i><span>Ocultar</span></button>
               <button id="removeBase" type="button" aria-label="Quitar fondo"><i data-icon="trash"></i>Quitar</button>
               <button id="baseLibrary" type="button" hidden><i data-icon="grid"></i>Elegir fondo</button>
@@ -237,6 +246,7 @@
               <h3 id="effectTarget" class="sr-only">Toda la visual</h3>
               <button id="stackBack" type="button" hidden></button>
               <div id="layerSelectionCaption"></div>
+              <button id="stackParameters" type="button" class="outline" hidden><i data-icon="sliders"></i>Editar parámetros</button>
               <div id="stackActions" aria-label="Acciones del elemento elegido" role="group">
                 <button type="button" id="stackMove" aria-expanded="false" aria-controls="stackDestinations">Mover a…</button>
                 <button type="button" id="stackUp" aria-label="Subir elemento" title="Subir elemento">↑</button>
@@ -273,7 +283,7 @@
                 <button id="stackLoop" type="button">Loop</button>
                 <button id="sectorDeform" class="sector-only" aria-pressed="false">Deformar</button>
                 <div id="sectorTransform" class="sector-only" hidden></div>
-                <button id="sectorCodeToggle" class="sector-only" aria-label="Código del sector" aria-expanded="false" aria-controls="layerCode">Código</button>
+                <button id="sectorCodeToggle" class="sector-only" aria-label="Código propio de la capa" title="Editar el programa que se ejecuta antes de los efectos de esta capa" aria-expanded="false" aria-controls="layerCode">Código propio</button>
               </div>
               <div id="sectorStyle" class="layer-palette sector-only" hidden>
                 <button id="sectorFillToggle" class="auto" aria-pressed="false"><span class="switch"></span>Relleno</button>
@@ -508,6 +518,34 @@
       <div id="displayChoices"></div>
       <div class="dialog-actions"><button id="manualDisplay" type="button">Ubicar a mano</button><button id="cancelDisplay" type="button" autofocus>Cancelar</button></div>
     </dialog>
+    <dialog id="visualParameters" aria-labelledby="visualParamTitle">
+      <header class="vp-header">
+        <div><p id="visualParamTarget"></p><h2 id="visualParamTitle"></h2></div>
+        <button type="button" id="cancelVisualParams" aria-label="Cerrar edición de parámetros" title="Cerrar (Esc)"><i data-icon="close"></i></button>
+      </header>
+      <div class="vp-body">
+        <div class="vp-preview">
+          <canvas id="visualParamPreview" width="320" height="180" aria-label="Vista previa de la visual"></canvas>
+          <p id="visualPreviewNotice"></p>
+        </div>
+        <section class="vp-controls" aria-label="Parámetros de la visual">
+          <input type="search" id="visualParamSearch" aria-label="Buscar parámetro u operador" placeholder="Buscar parámetro u operador…">
+          <div id="visualParamFields"></div>
+          <details id="visualParamSource"><summary>Ver o editar código</summary>
+            <textarea id="visualVariantCode" aria-label="Código de esta variante" spellcheck="false"></textarea>
+          </details>
+        </section>
+      </div>
+      <footer class="vp-footer">
+        <details id="visualParamSave"><summary>Guardar variante</summary>
+          <div><label>Nombre de la variante<input id="visualVariantName" maxlength="85"></label>
+          <button type="button" id="saveVisualVariant">Guardar copia</button></div>
+        </details>
+        <p id="visualParamStatus" role="status"></p>
+        <div class="vp-actions"><button type="button" id="mixVisualParams" class="outline">Mezclar</button>
+          <button type="button" id="applyVisualParams" class="primary">Aplicar cambios</button></div>
+      </footer>
+    </dialog>
     <dialog id="newCompositionDialog" aria-labelledby="newCompositionTitle" aria-describedby="newCompositionDescription">
       <h2 id="newCompositionTitle">¿Empezar en blanco?</h2>
       <p id="newCompositionDescription">Se vaciará la salida del estudio y se detendrán las entradas activas. Tus sketches, composiciones y loops guardados seguirán en la biblioteca.</p>
@@ -524,7 +562,7 @@
     <script src="vendor/p5/p5.min.js"></script>
     <script src="vendor/p5/hydra-wrapper.js"></script>
     <script src="vendor/patch-bay/client.js"></script>
-    <script src="src/network.js"></script>
+    <script src="src/network.js?v=3.1"></script>
     <script src="vendor/codemirror/lib/codemirror.js"></script>
     <script src="vendor/codemirror/mode/javascript/javascript.js"></script>
     <script src="vendor/codemirror/addon/edit/matchbrackets.js"></script>
@@ -532,28 +570,32 @@
     <script src="vendor/beautify/beautify.min.js"></script>
     <script src="vendor/acorn/dist/acorn.js"></script>
     <script src="vendor/hydra-gallery/examples.js"></script>
-    <script src="src/score-tools.js?v=2.16"></script>
-    <script src="src/sketches.js?v=2.19"></script>
-    <script src="src/engine.js?v=3.0"></script>
-    <script src="src/media.js?v=3.0"></script>
-    <script src="src/music-score.js?v=3.0"></script>
-    <script src="src/music.js?v=3.0"></script>
+    <script src="src/score-tools.js?v=3.1"></script>
+    <script src="src/sketches.js?v=3.1"></script>
+    <script src="src/engine.js?v=3.1"></script>
+    <script src="src/media.js?v=3.1"></script>
+    <script src="src/music-score.js?v=3.1"></script>
+    <script src="src/music.js?v=3.1"></script>
     <script src="vendor/omggif/omggif.js"></script>
-    <script src="src/gif-input.js?v=3.0"></script>
-    <script src="src/visual-input.js?v=3.0"></script>
-    <script src="src/studio-storage.js"></script>
-    <script src="src/sectors.js?v=3.0"></script>
-    <script src="src/editor-menu.js?v=3.0"></script>
-    <script src="src/studio-stack.js?v=3.0"></script>
-    <script src="src/sector-program.js?v=2.16"></script>
-    <script src="src/sector-history.js?v=3.0"></script>
-    <script src="src/loops.js?v=3.0"></script>
-    <script src="src/layout.js?v=3.0"></script>
-    <script src="src/compositions.js?v=3.0"></script>
-    <script src="src/code-guide.js?v=2.16"></script>
-    <script src="src/operator-editor.js?v=2.16"></script>
-    <script src="src/projector-display.js?v=3.0.1"></script>
-    <script src="src/projector-code.js?v=3.0"></script>
-    <script src="src/app.js?v=3.0.2"></script>
+    <script src="src/gif-input.js?v=3.1"></script>
+    <script src="src/visual-input.js?v=3.1"></script>
+    <script src="src/studio-storage.js?v=3.1"></script>
+    <script src="src/sectors.js?v=3.1"></script>
+    <script src="src/editor-menu.js?v=3.1"></script>
+    <script src="src/studio-stack.js?v=3.1"></script>
+    <script src="src/sector-program.js?v=3.1"></script>
+    <script src="src/sector-history.js?v=3.1"></script>
+    <script src="src/loops.js?v=3.1"></script>
+    <script src="src/layout.js?v=3.1"></script>
+    <script src="src/compositions.js?v=3.1"></script>
+    <script src="src/code-guide.js?v=3.1"></script>
+    <script src="src/context-code.js?v=3.1"></script>
+    <script src="src/operator-editor.js?v=3.1"></script>
+    <script src="src/visual-parameters.js?v=3.1"></script>
+    <script src="src/visual-preview.js?v=3.1"></script>
+    <script src="src/visual-inspector.js?v=3.1"></script>
+    <script src="src/projector-display.js?v=3.1"></script>
+    <script src="src/projector-code.js?v=3.1"></script>
+    <script src="src/app.js?v=3.1"></script>
   </body>
 </html>

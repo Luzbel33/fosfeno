@@ -1,4 +1,4 @@
-import { makePose, poseAt, readPose } from './pose-3d.mjs?v=3.0'
+import { makePose, poseAt, readPose } from './pose-3d.mjs?v=3.1'
 
 const cubeVertices=[[-1,1,1],[1,1,1],[1,-1,1],[-1,-1,1],[-1,1,-1],[1,1,-1],[1,-1,-1],[-1,-1,-1]]
 const meshes={

@@ -16,7 +16,7 @@ function modelViewControls(host, view, preview, commit) {
     return
   }
   if (host.loadingPose) return
-  host.loadingPose = import('./pose-3d.mjs?v=3.0').then(({poseControls}) => {
+  host.loadingPose = import('./pose-3d.mjs?v=3.1').then(({poseControls}) => {
     host.modelSync = poseControls(host, p=>host.modelEdit?.preview(p), p=>host.modelEdit?.commit(p), {camera:true})
     if (host.modelEdit) host.modelSync(host.modelEdit.view)
   })
@@ -117,7 +117,7 @@ async function acquireCamera(choice, input, signal) {
 
 async function prepareVisual(input, choice, file, signal) {
   if (isModelFile(file)) {
-    const {openModel} = await import('./model-source.mjs?v=3.0')
+    const {openModel} = await import('./model-source.mjs?v=3.1')
     signal.throwIfAborted()
     const model = await openModel(file,signal)
     if (signal.aborted) { model.dispose(); signal.throwIfAborted() }

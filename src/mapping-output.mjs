@@ -1,4 +1,4 @@
-import { squareToQuad, textureRenderer } from './mapping-warp.mjs?v=3.0'
+import { squareToQuad, textureRenderer } from './mapping-warp.mjs?v=3.1'
 
 export const anchors = [[.1, .1], [.9, .1], [.9, .9], [.1, .9]]
 export const identity = [1, 0, 0, 0, 1, 0, 0, 0, 1]

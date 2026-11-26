@@ -78,7 +78,7 @@ async function editCode(page, code, moveCaret = false) {
 }
 
 async function studioProjection(page) {
-  await openStudio(page, 'code')
+  await openStudio(page, 'base')
   await editCode(page, initialCode)
   let projector = await popProjector(page, page, 'project')
   await visualPixel(projector, red)
@@ -107,7 +107,7 @@ async function studioProjection(page) {
   await showsCode(projector, layerDraft)
   await visualPixel(projector, red)
 
-  await openStudio(page, 'code')
+  await openStudio(page, 'base')
   await page.evaluate(() => cm.focus())
   await showsCode(projector, draftCode)
   await projector.close()
@@ -144,7 +144,7 @@ async function mappingProjection(page) {
   await toggle.click()
   await showsCode(projector, draftCode)
   await click(page, 'mappingSectors')
-  await openStudio(page, 'code')
+  await openStudio(page, 'base')
   await editCode(page, mapDraft, true)
   await showsCode(projector, mapDraft)
   await visualPixel(projector, red)

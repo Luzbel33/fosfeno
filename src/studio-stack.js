@@ -127,7 +127,8 @@ class StudioStack {
       const base=this.actions.base()
       return base.present ? ['inspect','toggle','remove','library','code'] : ['library','code']
     }
-    const ops=['inspect','effects','library','code','loop']
+    const ops=['inspect','effects','library','loop']
+    if (kind!=='effect' || effect.code && ['library','operator'].includes(effect.kind)) ops.push('code')
     const clip=this.desk.history?.clipboard
     if (clip && (clip.region || clip.layers && id || clip.component==='effect' ||
         clip.component==='source' && layer.source!=='group' && ['none','sketch'].includes(layer.source) ||

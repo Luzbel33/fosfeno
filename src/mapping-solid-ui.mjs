@@ -1,5 +1,5 @@
-import { solidFaces } from './mapping-solids.mjs?v=3.0'
-import { poseControls } from './pose-3d.mjs?v=3.0'
+import { solidFaces } from './mapping-solids.mjs?v=3.1'
+import { poseControls } from './pose-3d.mjs?v=3.1'
 
 export function solidInspector({activeLayer, editLayer, dirty, sources, chooseLoop, openAsset, release, error}) {
   const $=id=>document.getElementById(id)
@@ -110,5 +110,5 @@ export function solidInspector({activeLayer, editLayer, dirty, sources, chooseLo
     const t=target()
     chooseLoop($('mapFaceLoop'),file=>setFile(file,'loop',t))
   }
-  return {sync,pick,current}
+  return {sync,pick,current,selectedFace:id=>id===objectId ? face : -1}
 }

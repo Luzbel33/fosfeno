@@ -1,11 +1,11 @@
-import { formats, identity, pattern, projectionRenderer, projectorToCamera } from './mapping-output.mjs?v=3.0'
-import { blankMap, packMap, unpackMap } from './mapping-project.mjs?v=3.0'
-import { rectQuad, quadBounds, mapQuadPoint, validQuad, warpRenderer, coverRect } from './mapping-warp.mjs?v=3.0'
-import { transformInfo, transformQuad, offCanvas } from './mapping-transform.mjs?v=3.0'
-import { mappingSamples } from './mapping-samples.mjs?v=3.0'
-import { makeSolid, solidFaceAt, solidRenderer } from './mapping-solids.mjs?v=3.0'
-import { solidInspector } from './mapping-solid-ui.mjs?v=3.0'
-import { poseAnimated } from './pose-3d.mjs?v=3.0'
+import { formats, identity, pattern, projectionRenderer, projectorToCamera } from './mapping-output.mjs?v=3.1'
+import { blankMap, packMap, unpackMap } from './mapping-project.mjs?v=3.1'
+import { rectQuad, quadBounds, mapQuadPoint, validQuad, warpRenderer, coverRect } from './mapping-warp.mjs?v=3.1'
+import { transformInfo, transformQuad, offCanvas } from './mapping-transform.mjs?v=3.1'
+import { mappingSamples } from './mapping-samples.mjs?v=3.1'
+import { makeSolid, solidFaces, solidFaceAt, solidRenderer } from './mapping-solids.mjs?v=3.1'
+import { solidInspector } from './mapping-solid-ui.mjs?v=3.1'
+import { makePose, poseAnimated } from './pose-3d.mjs?v=3.1'
 const draftModelViews=new WeakMap()
 
 const $ = id => document.getElementById(id)
@@ -201,6 +201,66 @@ function objectType(layer) {
   if (isGifFile(layer.file)) return 'GIF animado'
   return layer.file?.type.startsWith('video/') ? 'Video' : 'Foto'
 }
+function hydraOrigin(layer,face=solidTools.selectedFace(layer?.id)) {
+  let sector=0
+  if (layer?.kind==='solid') {
+    const faces=face<0 ? layer.solid.faces : [layer.solid.faces[face]]
+    if (!faces.length || faces.some(m=>m?.type!=='hydra' || m.sector!==faces[0].sector)) return null
+    sector=faces[0].sector || 0
+    if (sector && !sharedRows.some(row=>row.id===sector)) return null
+  } else if (layer?.kind!=='hydra') return null
+  return {sectorId:sector,layerId:0,kind:'sector'}
+}
+function mapDefinition(layer,face=solidTools.selectedFace(layer.id)) {
+  const asset=file=>{
+    if (!file) return
+    const meta={name:file.name,type:file.type || (isModelFile(file)?'model/gltf-binary':'desconocido'),size:file.size}
+    const info=media.get(file)?.input.current?.model?.summary
+    if (info) meta.model=info
+    return meta
+  }
+  const {id,name,kind,visible,opacity,rect,mask,quad}=layer
+  const data={id,name,kind,visible,opacity,rect,mask,quad}
+  let selection=''
+  if (kind==='file') {
+    data.file=asset(layer.file)
+    if (layer.mediaRole) data.mediaRole=layer.mediaRole
+    if (isModelFile(layer.file)) data.modelView=layer.modelView || makePose()
+  } else if (kind==='hydra') data.source='Salida compuesta del estudio Hydra'
+  else if (kind==='solid') {
+    const {shape,pose,faces}=layer.solid,labels=solidFaces(shape)
+    data.solid={shape,pose,faces:faces.map((material,index)=>({face:labels[index],...material,file:asset(material.file)}))}
+    if (face>=0) {data.selectedFace=labels[face];selection=' · '+labels[face]}
+  } else if (kind==='ink') {
+    const focus=layer.id===selected && selectedStroke!=null ? selectedStroke : -1
+    if (focus>=0) {data.selectedStroke=focus;selection=' · Trazo '+(focus+1)}
+    const strokes=focus>=0 ? [layer.strokes[focus]] : layer.strokes.slice(0,24)
+    data.strokeCount=layer.strokes.length
+    data.strokes=strokes.map(({points,...style})=>({...style,pointCount:points.length,points:points.slice(0,24),
+      ...(points.length>24 ? {omittedPoints:points.length-24} : {})}))
+    if (strokes.length<layer.strokes.length) data.omittedStrokes=layer.strokes.length-strokes.length
+  }
+  return {title:name+selection,description:objectType(layer)+' · Coordenadas relativas al lienzo.',
+    language:'json',text:JSON.stringify(data,null,2)}
+}
+function selectedMapCode() {
+  const layer=activeLayer()
+  return layer ? hydraOrigin(layer) || mapDefinition(layer) : sharedItem
+}
+function showMapDefinition(layer,source=false,face=solidTools.selectedFace(layer.id)) {
+  const target=source && hydraOrigin(layer,face) || mapDefinition(layer,face)
+  if (!studioWindow?.openFosfenoCode) return status('El editor de Código todavía está iniciando.',true)
+  return studioWindow.openFosfenoCode(target)
+}
+function syncCodeButtons(layer) {
+  const origin=hydraOrigin(layer)
+  const button=$('mapCodeOrigin')
+  button.hidden=!origin || !studioWindow?.openFosfenoCode
+  if (origin) button.title='Abrir '+(origin.sectorId ? sharedRows.find(row=>row.id===origin.sectorId)?.name : 'la mezcla del estudio')+' en Código'
+}
+$('mapObjectCode').onclick=()=>{const layer=activeLayer();if (layer) showMapDefinition(layer)}
+$('mapCodeOrigin').onclick=()=>{const layer=activeLayer();if (layer) showMapDefinition(layer,true)}
+$('mapSolidFaces').addEventListener('click',()=>syncCodeButtons(activeLayer()))
 function inkBounds(layer) {
   let x0=1, y0=1, x1=0, y1=0
   for (const stroke of layer.strokes) {
@@ -332,6 +392,7 @@ function sync() {
   syncTransform(layer)
   updateHandles(layer)
   solidTools.sync(layer)
+  syncCodeButtons(layer)
   $('mapMasks').hidden = layer?.kind === 'ink' || layer?.kind === 'solid'
   $('mapToSector').hidden = !studioWindow?.copyFosfenoMappingLayer || !layer || layer.kind==='solid'
   $('mapReplaceMedia').hidden = layer?.kind === 'ink' || layer?.kind === 'solid'
@@ -714,6 +775,16 @@ function mapStackPicker(ref,action,host,trigger) {
         } catch (error) { errorStatus(error) }
       })
       el.setAttribute('aria-pressed',String(choice.active))
+      if (action==='library') {
+        const pair=make('div'), edit=button('Editar',()=>{
+          try { sharedStack.editLibraryChoice(ref,choice.key) } catch (error) { errorStatus(error) }
+        })
+        pair.className='map-choice-pair'
+        edit.setAttribute('aria-label','Editar parámetros de '+choice.name)
+        edit.setAttribute('aria-haspopup','dialog')
+        pair.append(el,edit)
+        return pair
+      }
       return el
     }))
     if (!choices.length) results.textContent='Sin coincidencias.'
@@ -760,6 +831,9 @@ async function renderSharedProperties(node,focus) {
   const names={inspect:'Inspector del estudio',toggle:node.muted?'Activar':'Ocultar',up:'Subir',down:'Bajar',move:'Mover a…',
     remove:ref.kind==='group'?'Desagrupar':'Quitar',media:'Cambiar fuente',library:'Biblioteca',effects:'Añadir efecto',loop:'Elegir loop',addLayer:'Añadir capa',code:'Código'}
   if (ref.kind==='effect') names.toggle=node.muted?'Activar':'Pausar'
+  if (ref.kind==='base' || ref.kind==='code' || ref.kind==='effect' &&
+      sharedRows.find(r=>r.id===ref.sectorId)?.entries.find(l=>l.layerId===ref.layerId)?.effects
+        .some(fx=>fx.effectId===ref.effectId && ['library','operator'].includes(fx.kind))) names.inspect='Editar parámetros'
   let destinations
   for (const action of ['inspect','toggle','up','down','move','remove']) {
     if (!actions.includes(action)) continue
@@ -2255,6 +2329,33 @@ new EditorMenu($('mapContext'),(node,event,opening)=>{
   const nativeRow=node.closest('.map-layer[data-id]')
   const treeRef=availableItems.get(node.closest('[data-item]')?.dataset.item)?.ref
   const native=at ? hitAt(at) : nativeRow ? scene.layers.find(l=>l.id===nativeRow.dataset.id) : treeRef ? null : activeLayer()
+  const strokeButton=node.closest('#mapStrokeList button'), faceButton=node.closest('#mapSolidFaces button')
+  const editMaterial=(layer,face)=>{
+    const material=layer.solid.faces[face]
+    const button=$(material?.type==='file' ? 'mapFaceFile' : material?.type==='hydra' ? 'mapFaceHydra' : 'mapFaceColor')
+    if (button.getAttribute('aria-expanded')==='false') button.click()
+    const field=button.id==='mapFaceColor' ? $('mapFaceColors').querySelector('button') :
+      button.id==='mapFaceHydra' ? $('mapFaceSources').querySelector('button') : button
+    field.focus()
+  }
+  if (native && (strokeButton || faceButton)) {
+    const control=strokeButton || faceButton
+    const stroke=strokeButton && native.strokes[Array.from($('mapStrokeList').children).indexOf(strokeButton)]
+    const face=faceButton && Number(faceButton.dataset.face)
+    return {name:control.textContent,menu:stroke ? ['inspect','remove'] : ['inspect','code'],
+      keys:stroke ? ['remove'] : [],labels:{inspect:stroke ? 'Editar trazo' : 'Editar material',remove:'Quitar trazo',code:'Ver definición'},
+      choose:()=>control.click(),run:action=>{
+        const layer=activeLayer()
+        if (layer?.id!==native.id) throw new Error('La selección del mapa cambió.')
+        if (stroke) {
+          selectedStroke=layer.strokes.indexOf(stroke)
+          if (selectedStroke<0) throw new Error('Ese trazo ya no está en el objeto.')
+          if (action==='remove') return $('mapRemoveStroke').click()
+          sync();$('mapBrushSize').focus()
+        } else if (action==='code') showMapDefinition(layer,false,face)
+        else editMaterial(layer,face)
+      }}
+  }
   const hit=at && !native && studioSectorAt(at)
   const ref=at ? (hit && {sectorId:hit.id,layerId:0,kind:'sector'}) : treeRef || (!native && sharedItem)
   const tools=['select','brush','line']
@@ -2263,7 +2364,9 @@ new EditorMenu($('mapContext'),(node,event,opening)=>{
     const spec=EditorMenu.stack(ref,sharedStack.capabilities(ref),entry?.muted,sharedStack.snapshot())
     if (node.closest('#mapSectorHandles')) spec.keys=spec.keys.filter(key=>key!=='nudge')
     spec.keys.push('brush','line')
-    return {...spec,name:entry?.label || 'Sector',choose:()=>selectStudio(ref,false),run:async(action,delta)=>{
+    const anchor=()=>treeRef && $('mapStudioLayers').querySelector('[data-item="'+CSS.escape(itemKey(ref))+'"] .map-layer-name')
+    return {...spec,name:entry?.label || 'Sector',anchor,choose:()=>selectStudio(ref,false),run:async(action,delta)=>{
+      if (['inspect','code','effects','library'].includes(action)) return sharedStack.command(action,ref)
       if (tools.includes(action)) return document.querySelector('[data-tool="'+action+'"]').click()
       if (action==='deform') {
         if (displayView==='output') displayView=camera.current?'surface':'canvas'
@@ -2282,8 +2385,10 @@ new EditorMenu($('mapContext'),(node,event,opening)=>{
     }}
   }
   const keys=[...tools], choices=[]
+  const face=native?.kind==='solid' && at ? faceAtMap(native,at) : solidTools.selectedFace(native?.id)
   if (native) {
-    choices.push('inspect')
+    choices.push('inspect','rename','code')
+    if (studioWindow?.openFosfenoCode && hydraOrigin(native,face)) choices.push('origin')
     if (native.visible) choices.push('deform','center')
     if (native.quad) choices.push('resetTransform')
     choices.push('toggle','duplicate','copy')
@@ -2294,14 +2399,38 @@ new EditorMenu($('mapContext'),(node,event,opening)=>{
   if (copiedLayer) choices.push('paste')
   if (native) choices.push('remove')
   else if (history.length || future.length) choices.push(...(history.length?['undo']:[]),...(future.length?['redo']:[]))
-  return {menu:choices,keys,labels:{toggle:native?.visible?'Ocultar':'Mostrar'},name:native?.name || 'Lienzo',
+  const anchor=()=>nativeRow && $('mapLayers').querySelector('[data-id="'+CSS.escape(nativeRow.dataset.id)+'"] .map-layer-name')
+  return {menu:choices,keys,anchor,labels:{inspect:native?.kind==='ink'?'Editar trazos':native?.kind==='solid'?'Editar caras':'Editar propiedades',
+    rename:'Renombrar',code:'Ver definición',origin:'Código de origen',toggle:native?.visible?'Ocultar':'Mostrar'},name:native?.name || 'Lienzo',
     choose:()=>{if (native && native!==activeLayer()) selectLayer(native)},run:async action=>{
       if (tools.includes(action) || action==='shape') return document.querySelector('[data-tool="'+action+'"]').click()
       if (action==='undo' || action==='redo') return useHistory(action==='undo')
-      if (native && native!==activeLayer()) selectLayer(native)
-      if (action==='inspect') {
+      if (native && native!==activeLayer()) {
+        const live=scene.layers.find(layer=>layer.id===native.id)
+        if (!live) throw new Error('Ese objeto ya no está en el mapa.')
+        selectLayer(live)
+      }
+      if (native && (action==='code' || action==='origin')) return showMapDefinition(activeLayer(),action==='origin',face)
+      if (action==='rename') {
         const name=$('mapLayerName')
         name.focus();name.select();return
+      }
+      if (action==='inspect') {
+        const layer=activeLayer()
+        let field=$('mapOpacity')
+        if (layer.kind==='ink' && layer.strokes.length) {
+          $('mapStrokes').open=true
+          renderStrokes(layer)
+          field=$('mapStrokeList').querySelector('button[aria-pressed=true]') || $('mapStrokeList').firstElementChild
+          field.click()
+          field=$('mapBrushSize')
+        } else if (layer.kind==='solid') {
+          field=$('mapSolidFaces').querySelector('[data-face="'+face+'"]') || $('mapSolidFaces').firstElementChild
+          field?.click()
+          return editMaterial(layer,face)
+        }
+        field.focus()
+        return
       }
       if (action==='up' || action==='down') return reorder(action==='up'?1:-1)
       await window.fosfenoMapping.action(action==='remove'?'delete':action)
@@ -2388,7 +2517,7 @@ $('mapEditSeed').onclick = () => {
   catch (error) { errorStatus(error) }
 }
 $('mapApplySeed').onclick = () => studioWindow.fosfenoSeeds.send().catch(errorStatus)
-window.fosfenoMapping = { activate, deactivate, openProjection, chooseDisplay, action:objectAction,
+window.fosfenoMapping = { activate, deactivate, openProjection, chooseDisplay, action:objectAction, codeTarget:selectedMapCode,
   canPaste:()=>!!copiedLayer,
   pendingSeed(pending) { $('mapApplySeed').hidden=!pending },
   showSeed(sectorId,name,visibility) {

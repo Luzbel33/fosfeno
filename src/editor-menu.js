@@ -6,20 +6,22 @@ class EditorMenu {
     select:'Mover',brush:'Pincel',line:'Línea',undo:'Deshacer',redo:'Rehacer',remove:'Quitar'}
   static keys = {duplicate:'Mod D',copy:'Mod C',paste:'Mod V',undo:'Mod Z',redo:'Mod Mayús Z',
     up:'Alt ↑',down:'Alt ↓',remove:'Supr',select:'V',brush:'B',line:'L'}
-  static editing(target) {
-    return target?.closest?.('input,textarea,select,[contenteditable]:not([contenteditable=false]),.CodeMirror,[role=textbox]') ||
-      document.querySelector('dialog[open]')
+  static editing(target,contextMenu=false) {
+    const field=target?.closest?.('input,textarea,select,[contenteditable]:not([contenteditable=false]),.CodeMirror,[role=textbox]')
+    return document.querySelector('dialog[open]') || field && !(contextMenu && field.matches('input[type=range]'))
   }
   static stack(ref,allowed,muted,history) {
-    const options=['inspect',...(['sector','group','layer'].includes(ref.kind) ? ['effects'] : []),
+    const options=['inspect',...(['base','code','effect','sector','group','layer'].includes(ref.kind) ? ['code'] : []),
+      ...(['sector','group','layer'].includes(ref.kind) ? ['effects'] : []),
       'toggle','duplicate','copy','paste','up','down','remove'].filter(id=>allowed.includes(id))
-    if (ref.kind==='base' && !options.length) options.push(...['library','code'].filter(id=>allowed.includes(id)))
+    if (ref.kind==='base' && !allowed.includes('inspect')) options.unshift('library')
     if (ref.kind==='sector' && ref.sectorId) options.splice(1,0,'deform','center')
     const keys=[...options,'select']
     if (ref.kind==='sector' && ref.sectorId) keys.push('nudge')
     if (history.canUndo) keys.push('undo')
     if (history.canRedo) keys.push('redo')
     const labels={toggle:ref.kind==='effect' ? (muted?'Activar efecto':'Pausar efecto') : (muted?'Mostrar':'Ocultar')}
+    if (['base','code','effect'].includes(ref.kind) && allowed.includes('code')) labels.inspect='Editar parámetros'
     if (ref.kind==='group') labels.remove='Desagrupar'
     return {menu:options,keys,labels}
   }
@@ -38,7 +40,7 @@ class EditorMenu {
     trigger.setAttribute('aria-haspopup','menu')
     trigger.onclick=()=>this.el.hidden ? this.open(trigger,null) : this.close(true)
     document.addEventListener('contextmenu',event=>{
-      if (EditorMenu.editing(event.target) || this.el.contains(event.target)) return
+      if (EditorMenu.editing(event.target,true) || this.el.contains(event.target)) return
       if (this.open(event.target,event)) event.preventDefault()
     })
     document.addEventListener('keydown',event=>this.key(event),true)
@@ -51,9 +53,9 @@ class EditorMenu {
   open(target,event) {
     const spec=this.context(target,event,true)
     if (!spec?.menu.length) return false
-    this.returnTo=target.closest('button,[tabindex]') || this.trigger
+    this.returnTo=target.closest('button,[tabindex]') || spec.anchor?.() || this.trigger
+    this.returnAnchor=spec.anchor
     const rect=this.returnTo.getBoundingClientRect()
-    spec.choose?.()
     const title=document.createElement('strong')
     title.textContent=spec.name
     title.setAttribute('role','presentation')
@@ -95,10 +97,14 @@ class EditorMenu {
     this.el.style.left=Math.max(left+6,Math.min(left+width-box.width-6,event?.clientX ?? rect.left))+'px'
     this.el.style.top=Math.max(top+6,Math.min(top+height-box.height-6,event?.clientY ?? rect.bottom))+'px'
     this.el.querySelector('button').focus({preventScroll:true})
+    // Selecting a different row can rebuild the tree. Its focus restoration
+    // must see the menu as focused, not the previously focused tree button.
+    spec.choose?.()
     return true
   }
   showShortcuts(mod) {
     this.close(true)
+    const origin=document.activeElement
     const dialog=document.createElement('dialog'),title=document.createElement('h2'),list=document.createElement('dl')
     dialog.className='editor-shortcuts'
     title.textContent='Atajos de edición'
@@ -114,7 +120,11 @@ class EditorMenu {
     }
     const close=document.createElement('button')
     close.type='button';close.textContent='Cerrar';close.onclick=()=>dialog.close()
-    dialog.onclose=()=>{dialog.remove();this.trigger.focus({preventScroll:true})}
+    dialog.onclose=()=>{
+      dialog.remove()
+      const destination=origin?.getClientRects().length ? origin : this.trigger
+      destination.focus({preventScroll:true})
+    }
     dialog.append(title,list,close);document.body.append(dialog)
     dialog.showModal();close.focus()
   }
@@ -122,7 +132,11 @@ class EditorMenu {
     if (this.el.hidden) return
     this.el.hidden=true
     this.trigger.setAttribute('aria-expanded','false')
-    if (restore) (this.returnTo?.isConnected ? this.returnTo : this.trigger).focus({preventScroll:true})
+    if (restore) {
+      const anchor=this.returnTo?.getClientRects().length ? this.returnTo : this.returnAnchor?.()
+      const destination=anchor?.getClientRects().length ? anchor : this.trigger
+      destination.focus({preventScroll:true})
+    }
   }
   invoke(spec,action,delta) {
     try { Promise.resolve(spec.run(action,delta)).catch(this.onError) } catch(error) { this.onError(error) }

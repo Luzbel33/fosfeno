@@ -15,6 +15,37 @@ for (const name of ['engine', 'sketches']) {
 }
 const { compileScore, growSketch } = context
 
+test('numeric seeds keep their historic scores and all significant decimal digits', () => {
+  const hash=require('node:crypto').createHash('sha256')
+  for (const n of [0,1,777,2147483648,4294967295]) {
+    for (const fold of ['libre','x','y','radial']) {
+      const code=growSketch(n,fold)
+      hash.update(code+'\n')
+      assert.deepEqual({...context.seedRecipe({code})},{seed:String(n),fold})
+    }
+  }
+  assert.equal(hash.digest('hex'),'47fc6de7f27df3ecf6932e7a7a37b7037b9d20e4fe7ff628a56aee42080bf9dd')
+  assert.equal(growSketch('-000,000'),growSketch(0))
+  assert.equal(growSketch('+0000777.0'),growSketch(777))
+  assert.equal(growSketch('−000,057000','y'),growSketch('-.057','y'))
+  for (const invalid of ['+','.',',','- 1','1.2,3','1e3','Infinity','123\n456']) {
+    assert.equal(context.canonicalSeed(invalid),null)
+    assert.throws(()=>growSketch(invalid))
+  }
+  const recipeSeed='-987654321098765432109876543210.'+'0'.repeat(4096)
+  const body=score=>score.slice(score.indexOf('\n')+1)
+  for (const [a,b] of [[recipeSeed+'5',recipeSeed+'6'],['9007199254740992','9007199254740993'],['4294967296','0']])
+    assert.notEqual(body(growSketch(a)),body(growSketch(b)))
+  const decimal=recipeSeed+'5'
+  for (const fold of ['libre','x','y','radial']) {
+    const code=growSketch(decimal,fold)
+    assert.equal(growSketch(decimal.replace('.',',')+'00',fold),code)
+    assert.deepEqual({...context.seedRecipe({code})},{seed:decimal,fold})
+    assert.equal(context.seedRecipe({code:code+'\nosc().out()'}),null)
+    assert.doesNotThrow(()=>compileScore(code,Object.create(null)))
+  }
+})
+
 test('the initial score is byte-identical to the captured Hydra editor document', () => {
   const { createHash } = require('node:crypto')
   const initial = vm.runInContext('SKETCHES[0]', context)

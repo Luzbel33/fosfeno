@@ -1,6 +1,6 @@
 ;(() => {
   'use strict'
-  const edition = '3.0.2'
+  const edition = '3.1'
   const blankScore = '// Tu sketch Hydra'
   const $ = (id) => document.getElementById(id)
   const all = (sel, root = document) => Array.from(root.querySelectorAll(sel))
@@ -154,8 +154,10 @@
   })
   window.cm = cm
   const layerEditor = $('sectorCode')
-  let projectedLayer = null
-  const projectorCode = new ProjectorCode(() => projectedLayer
+  let projectedLayer = null, codeBrowser=null, codeSelection='', openingCode=false
+  const projectorCode = new ProjectorCode(() => codeBrowser?.scoped && !codeBrowser.page.hidden && !projectedLayer
+    ? {text:codeBrowser.projected ? codeBrowser.cm.getValue() : '',cursor:codeBrowser.cm.indexFromPos(codeBrowser.cm.getCursor())}
+    : projectedLayer
     ? {text:layerEditor.value,cursor:layerEditor.selectionDirection==='backward' ? layerEditor.selectionStart : layerEditor.selectionEnd}
     : {text:cm.getValue(),cursor:cm.indexFromPos(cm.getCursor())})
   window.fosfenoProjectorCode = projectorCode
@@ -208,6 +210,7 @@
   const layout = new StudioLayout(cm)
   const libraryRows = new WeakMap()
   const sectors = new SectorDesk({
+    linkLibraryInstance,seedRecipe,
     live: () => live, input: () => inputs[0].current?.element || engine?.h.s0.src,
     inputFile: () => inputs[0].current?.file,
     bass: () => state.bands[0], connect: () => openVisual('camera', undefined, false), disconnect: () => clearVisual(),
@@ -272,6 +275,7 @@
   }
   let saved = stored('scores', [])
   if (!Array.isArray(saved)) saved = []
+  else saved=saved.map(item=>({...item,personal:true}))
   function status(text, error = false) {
     $('codeStatus').textContent = text
     $('codeStatus').classList.toggle('error', error)
@@ -451,19 +455,44 @@
     baseAction:action=>action==='toggle' ? toggleStudioBase() : removeStudioBase(),
     open:openStackItem
   })
+  function writeEffectCode(effect,code) {
+    if (effect.kind==='library') effect.libraryId ??= linkLibraryInstance(effect)
+    effect.code=code
+    delete effect.generator
+  }
+  codeBrowser=new StudioCodeBrowser({base:cm,desk:sectors,stack:studioStack,baseInfo:getStudioBase,live:()=>live,writeEffectCode,
+    signal:()=>inputs[0].current,project:()=>projectorCode.refresh(),returnMap:()=>{if(mappingMode) mappingView(true)}})
+  function openSelectionCode(ref) {
+    const fromMap=mappingMode && mappingBench
+    ref ??= (fromMap && mappingDesk()?.codeTarget?.()) || studioStack.active()
+    openingCode=true
+    try {
+      if (fromMap) mappingView(false)
+      changeView('code',true,true)
+      codeBrowser.open(ref,fromMap)
+      codeSelection=JSON.stringify(studioStack.active())
+      showDraft(false)
+      if (!layout.compact.matches) (codeBrowser.scoped ? codeBrowser.cm : cm).focus()
+    } finally { openingCode=false }
+  }
+  window.openFosfenoCode=openSelectionCode
   window.fosfenoStack={
     capabilities:ref=>studioStack.capabilities(ref),
     snapshot:studioStack.actions.snapshot,
     subscribe:callback=>studioStack.subscribe(callback),
     choices(ref,mode,query='') {
-      const {layer}=studioStack.resolve(ref)
+      const {layer,effect}=studioStack.resolve(ref)
       const normalize=text=>String(text).normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase()
       const term=normalize(query.trim())
       const matches=(...fields)=>fields.some(field=>normalize(field).includes(term))
       if (mode==='library') {
-        const rows=(items,collection)=>items.filter(item=>matches(item.name,item.group || '')).map(item=>({
-          key:collection+':'+item.id,name:item.name,active:layer.fx.some(f=>f.kind==='library' && f.name===item.name && f.code===item.code && f.enabled!==false)
-        }))
+        const rows=(items,collection)=>items.filter(item=>matches(item.name,item.group || '')).map(item=>{
+          const instance=findLibraryEffect(layer,item,ref.kind==='effect' && effect)
+          return {key:collection+':'+item.id,name:item.name,active:!!instance && instance.enabled!==false,
+            assigned:!!instance,modified:isLibraryVariation(item,instance),
+            effect:instance ? {sectorId:ref.sectorId,layerId:ref.layerId??0,kind:'effect',
+              index:layer.fx.indexOf(instance),effectId:studioStack.effectKey(instance)} : null}
+        })
         return [...rows(saved,'saved'),...rows(SKETCHES,'builtin')]
       }
       const rows=quickSectorEffects().filter(name=>matches(name)).map(name=>({
@@ -477,7 +506,7 @@
       return rows
     },
     applyChoice(ref,key) {
-      const {layer}=studioStack.resolve(ref)
+      const {layer,effect:preferred}=studioStack.resolve(ref)
       const split=key.indexOf(':'), family=key.slice(0,split), id=key.slice(split+1)
       studioStack.select(ref)
       if (family==='quick' && quickSectorEffects().includes(id)) sectors.toggleNamedEffect(layer,id)
@@ -491,8 +520,16 @@
       } else {
         const item=(family==='saved' ? saved : family==='builtin' ? SKETCHES : []).find(item=>String(item.id)===id)
         if (!item) throw new Error('El elemento ya no está en la biblioteca.')
-        sectors.toggleLibrary(layer,item,false)
+        sectors.toggleLibrary(layer,item,false,ref.kind==='effect' && preferred)
       }
+    },
+    editLibraryChoice(ref,key) {
+      studioStack.select(ref)
+      setLayerScope(sectors.selected())
+      const separator=key.indexOf(':'), collection=key.slice(0,separator), id=key.slice(separator+1)
+      const item=(collection==='saved'?saved:SKETCHES).find(entry=>String(entry.id)===id)
+      if (!item) throw new Error('La visual ya no está en la biblioteca.')
+      openLibraryParameters(item,true,layerTarget())
     },
     async file(ref,file) {
       const {layer}=studioStack.resolve(ref)
@@ -543,6 +580,11 @@
   let lastStackGeometry=[]
   let browserScroll=0
   function openStackItem(action,ref) {
+    if (action==='code') return openSelectionCode(ref)
+    const {layer,effect,index}=studioStack.resolve(ref)
+    if (action==='inspect' && ((ref.kind==='base' && getStudioBase().present && hasSketch(cm.getValue())) ||
+        (ref.kind==='code' && layer.code) || (ref.kind==='effect' && effect.code && ['library','operator'].includes(effect.kind))))
+      return openEffectParameters(ref)
     setLayerScope(sectors.selected())
     if (action==='loop') return chooseStackLoop()
     if (mappingMode && mappingBench) mappingView(false)
@@ -550,23 +592,36 @@
     if (!layout.wide.matches) changeView('sectors')
     if (action==='library') { changeView('library'); showLibraryShelf('sketches'); return }
     if (action==='effects') return sectors.panel('effectPicker',true)
-    if (action==='media' || (action==='inspect' && ['source','paint'].includes(ref.kind))) {
-      if (!ref.sectorId && action==='media') return openPanel('input')
-      if (!ref.sectorId && ref.kind==='source') $('stackMedia').focus({preventScroll:true})
+    let control
+    if (action==='media' || ['source','paint'].includes(ref.kind)) {
+      if (!ref.sectorId && (action==='media' || (ref.kind==='source' && layer.source==='s0'))) {
+        openPanel('input')
+        control=$('camera')
+      } else if (!ref.sectorId && ref.kind==='source') control=$('stackMedia')
       else {
         sectors.panel('sectorMedia',true)
-        $(ref.kind==='paint' ? 'sectorBrushSize' : 'sectorFileButton').focus({preventScroll:true})
+        control=ref.kind==='paint' ? $('sectorBrushSize') : layer.source==='file' ? $('sectorFileButton') :
+          document.querySelector('[data-sector-src][aria-pressed=true]') || $('sectorFileButton')
       }
-    } else if (action==='code' || (action==='inspect' && ['code','base'].includes(ref.kind))) {
+    } else if (['code','base'].includes(ref.kind)) {
       if (!ref.sectorId && ref.kind!=='code') { changeView('code'); cm.focus(); return }
       sectors.panel('layerCode',true)
-      $('sectorCode').focus({preventScroll:true})
+      control=$('sectorCode')
     } else if (ref.kind==='effect') {
-      const effect=$('sectorControls').querySelector('[data-effect-index="'+studioStack.active().index+'"]')
-      effect?.querySelector('input')?.focus({preventScroll:true})
+      control=$('sectorControls').querySelector('[data-effect-index="'+index+'"] input')
+    } else if (ref.sectorId && ref.kind==='sector') {
+      sectors.panel('sectorStyle',true)
+      control=$('sectorFillToggle')
+    } else if (ref.sectorId && ['layer','group'].includes(ref.kind)) {
+      sectors.panel(null)
+      control=$('sectorOpacity')
+    } else {
+      control=$('sectorControls').querySelector('input') || $('addSectorEffect')
     }
-    if (!layout.wide.matches) $('layerDesk').scrollTop=0
-    else { $('sectorDetail').scrollTop=0; keepStackItemVisible() }
+    if (control) {
+      control.scrollIntoView({block:'nearest',inline:'nearest'})
+      control.focus({preventScroll:true})
+    }
   }
   function selectSectorLayer(id, layerId, action, effectIndex) {
     const region = sectors.regions.find(item => item.id === id)
@@ -582,7 +637,7 @@
     if (!layout.layersVisible) showLayers(true)
     if (!layout.wide.matches) changeView('sectors')
     sectors.refresh()
-    if (action && action!=='select') openStackItem('inspect',ref)
+    if (action && action!=='select') openStackItem('select',ref)
   }
   function describeLayer(layer, applied, region) {
     const rendered = sectors.appliedLayer(layer)
@@ -647,6 +702,13 @@
     const query=$('stackSearch').value
     const key=JSON.stringify([rows,scopeId,selection,base,sectors.history?.past.length,sectors.history?.future.length])
     if (root.dataset.state===key && root.dataset.query===query) return
+    if (!openingCode && codeBrowser && !$('editorPage').hidden && !mappingBench) {
+      const signature=JSON.stringify(selection)
+      if (codeSelection!==signature) {
+        codeSelection=signature
+        codeBrowser.open(selection,!codeBrowser.back.hidden && mappingMode)
+      } else codeBrowser.refresh()
+    }
     if (root.dataset.state!==key) studioStack.notify()
     root.dataset.state=key
     root.dataset.query=query
@@ -726,6 +788,7 @@
       $('baseVisibility').innerHTML = icon(base.visible ? 'eye' : 'eyeOff') + (base.visible ? 'Ocultar' : 'Mostrar')
       $('removeBase').hidden = !base.present
       $('baseLibrary').hidden = base.present
+      $('baseParameters').hidden = !base.present
     }
     const name = base.present ? base.name : 'Sin fondo'
     if ($('baseTitle').textContent !== name) $('baseTitle').textContent = name
@@ -734,6 +797,7 @@
     return base
   }
   $('baseVisibility').onclick = toggleStudioBase
+  $('baseParameters').onclick=()=>openEffectParameters({sectorId:0,layerId:0,kind:'base'})
   $('removeBase').onclick = () => {
     removeStudioBase()
     if ($('removeBase').hidden) $('baseLibrary').focus({preventScroll:true})
@@ -746,6 +810,7 @@
   }
   function refreshStackActions(ref) {
     const {sector,layer,effect}=studioStack.resolve(ref)
+    $('stackParameters').hidden=!(ref.kind==='effect' && effect.code || ref.kind==='code' && layer.code)
     const capabilities=studioStack.capabilities(ref)
     const label=ref.kind==='effect' ? effect.name : ref.kind==='source' ? describeLayer(layer,null,sector).source :
       ref.kind==='code' ? 'Código Hydra' : ref.kind==='paint' ? 'Pinceladas' :
@@ -867,32 +932,65 @@
     $('sectorFile').click()
   }
   $('stackSignalSettings').onclick=()=>openPanel('input')
+  $('stackParameters').onclick=()=>openEffectParameters(studioStack.active())
   for (const [id,action] of [['stackUp','up'],['stackDown','down'],['stackRemove','remove'],['stackLoop','loop']]) {
     $(id).onclick=()=>runStack(action).then(()=>{
       if (action==='remove' || $(id).hidden) focusStackSelection()
     })
   }
   new EditorMenu($('stackContext'),(node,pointer,opening)=>{
+    if (!mappingBench && node.closest('#libraryPage') && typeof libraryMenuContext==='function') {
+      const catalog=libraryMenuContext(node,pointer,opening)
+      if (catalog) return catalog
+    }
     if (mappingBench || sectors.drag || !node.closest('#layerDesk,#stage,#stackContext') &&
         !(node===document.body && !opening)) return null
-    const branch=node.closest('.layer-tree-effect,.layer-tree-head,.layer-overview-row')
+    const branch=node.closest('.layer-tree-effect,.layer-tree-head,.layer-tree-item,.layer-overview-row')
     const item=node.closest('[data-stack-item]') || branch?.querySelector('[data-stack-item]')
+    if (item?.disabled || node.closest('.effect-pending')) return null
+    const numberRow=node.closest('#sectorControls [data-effect-index]')
     const stage=node.closest('#stage')
+    if (stage && document.fullscreenElement===stage) return null
     let ref=item ? JSON.parse(item.dataset.stackItem) : studioStack.active()
     if (node.closest('#baseCard')) ref={sectorId:0,layerId:0,kind:'base'}
+    if (numberRow) {
+      const index=Number(numberRow.dataset.effectIndex),fx=sectors.target().fx[index]
+      if (!fx) return null
+      ref={...ref,kind:'effect',index,effectId:studioStack.effectKey(fx)}
+    }
     if (stage && pointer) {
-      const hit=sectors.guideHit(sectors.point(pointer,true))
-      ref={sectorId:hit?.region.id ?? 0,layerId:0,kind:'sector'}
+      const canvas=$('visual'), bounds=canvas.getBoundingClientRect()
+      const fit=Math.min(bounds.width/canvas.width,bounds.height/canvas.height)
+      const w=canvas.width*fit, h=canvas.height*fit
+      const x=(pointer.clientX-bounds.left-(bounds.width-w)/2)/w
+      const y=(pointer.clientY-bounds.top-(bounds.height-h)/2)/h
+      const hit=x>=0 && x<=1 && y>=0 && y<=1 && sectors.regions.findLast(region=>{
+        if (!region.visible) return false
+        traceRegion(sectors.ctx,region.points,canvas.width,canvas.height)
+        return sectors.ctx.isPointInPath(x*canvas.width,y*canvas.height,'evenodd')
+      })
+      ref={sectorId:hit?.id ?? 0,layerId:0,kind:!hit && getStudioBase().present ? 'base' : 'sector'}
     }
     const {sector,layer,effect}=studioStack.resolve(ref)
     const muted=ref.kind==='effect'? effect.enabled===false : ref.kind==='sector' ? !sector.visible :
       ref.kind==='base' ? !getStudioBase().visible : !!layer.hidden
     const history={canUndo:!!sectors.history.past.length,canRedo:!!sectors.history.future.length}
     const spec=EditorMenu.stack(ref,studioStack.capabilities(ref),muted,history)
-    if (!ref.sectorId && ref.kind==='sector') spec.menu.unshift('shape')
+    if (!ref.sectorId && (ref.kind==='sector' || stage)) spec.menu.splice(1,0,'shape')
     const name=ref.kind==='base' ? 'Fondo' : ref.kind==='effect' ? effect.name : ref.kind==='sector' ? sectorLabel(sector) :
       ({source:'Fuente',paint:'Pinceladas',code:'Código Hydra'})[ref.kind] || sectorLayerLabel(layer)
-    return {...spec,name,choose:()=>{studioStack.select(ref);sectors.refresh()},run:async(action,delta)=>{
+    const anchor=()=>{
+      if (item) return $('layerOverview').querySelector('[data-stack-item="'+CSS.escape(item.dataset.stackItem)+'"]')
+      if (numberRow) return $('sectorControls').querySelector('[data-effect-index="'+sectors.target().fx.indexOf(effect)+'"] input')
+      if (stage) {
+        stage.tabIndex=-1
+        return stage
+      }
+    }
+    return {...spec,name,anchor,choose:()=>{
+      studioStack.select(ref)
+      sectors.refresh()
+    },run:async(action,delta)=>{
       if (action==='nudge') {
         const box=$('visual').getBoundingClientRect()
         if (box.width && box.height) window.fosfenoStack.geometry.update(sector.id,sector.points,
@@ -1102,9 +1200,16 @@
     tree.replaceChildren(...visibleEntries.filter(entry=>!entry.groupId).map(render))
     if (focus) Array.from(tree.querySelectorAll('[data-tree-action]')).find(button=>button.dataset.treeAction===focus)?.focus({preventScroll:true})
   }
-  function changeView(next, openTools = true) {
+  function changeView(next, openTools = true, preserveCode = false) {
+    if (next!=='code') codeBrowser?.flush()
     if (mappingBench && openTools && next!=='sectors') mappingView(false)
-    if (next==='code') showDraft(false)
+    if (next==='code') {
+      if (!preserveCode && codeBrowser) {
+        codeBrowser.open({sectorId:0,layerId:0,kind:'base'})
+        codeSelection=JSON.stringify(studioStack.active())
+      }
+      showDraft(false)
+    }
     if (view==='library' && next!=='library') loops.stopPreview()
     view=next
     if (next!=='sectors' && layout.wide.matches) layout.setInspectorVisible(true)
@@ -1117,10 +1222,10 @@
       next==='signal' && signalTab==='out' ? $('chooseOutput') : next==='signal' && signalTab==='audio' ? $('signalOpen') :
       document.querySelector('#studioNav [data-view="'+layout.activeView(next)+'"]')
     layout.open(openTools)
-    if (layout.activeView(next)==='code') requestAnimationFrame(()=>cm.refresh())
+    if (layout.activeView(next)==='code') requestAnimationFrame(()=>(codeBrowser?.scoped ? codeBrowser.cm : cm).refresh())
     if (next==='library') library()
   }
-  layout.wide.addEventListener('change',()=>changeView(view,layout.opened))
+  layout.wide.addEventListener('change',()=>changeView(view,layout.opened,true))
   function showLayers(on) {
     layout.setLayersVisible(on)
     if (!on) sectors.panel(null)
@@ -1160,6 +1265,7 @@
     if (tab === 'input') listCameras()
   }
   function fromToolbar(next, tab) {
+    if (next==='code') return openSelectionCode()
     if (mappingBench) mappingView(false)
     if (layout.wide.matches && next==='sectors') {
       showLayers(true)
@@ -1170,7 +1276,6 @@
     if (layout.activeView(view)===next && (!tab || signalTab===tab)) layout.open(true)
     else if (tab) openPanel(tab)
     else changeView(next)
-    if (next==='code' && !layout.compact.matches) cm.focus()
   }
   all('[data-view]').forEach(
     b => b.onclick = () => fromToolbar(b.dataset.view, b.dataset.view === 'signal' ? 'input' : undefined)
@@ -1234,12 +1339,34 @@
     cm.clearHistory()
     loading = false
   }
+  function linkLibraryInstance(instance) {
+    if (!instance) return
+    if (instance.personal && instance.id!=null) return libraryItemId(instance)
+    if (instance.libraryId) return instance.libraryId
+    if (!hasSketch(instance.code)) return
+    const exact=[...SKETCHES,...saved,...HYDRA_GALLERY,...community].filter(item=>item.code===instance.code)
+    const match=exact.find(item=>item.id===instance.id) || exact.find(item=>item.name===instance.name) || exact[0]
+    if (match) return libraryItemId(match)
+    const recipe=seedRecipe(instance)
+    if (recipe) return libraryItemId({generator:recipe})
+  }
+  function linkedScore(item) {
+    const libraryId=linkLibraryInstance(item)
+    const generator=seedRecipe(item) || undefined
+    return {...item,libraryId,generator}
+  }
+  function baseMatchesLibrary(item,code=cm.getValue()) {
+    return baseMode!=='empty' && matchesLibraryItem(item,{libraryId:current.libraryId,code})
+  }
   function draft() {
+    const code=cm.getValue()
     return {
       id: current.id,
+      personal:current.personal,
+      libraryId:current.libraryId,
       name: $('scoreName').value.trim() || 'Sin título',
-      code: cm.getValue(),
-      generator:current.generator,
+      code,
+      generator:seedRecipe({code,generator:current.generator}) || undefined,
       baseMode,
       autoEdit: armed,
       modified
@@ -1253,6 +1380,7 @@
     const entry = draft()
     if (!current.personal) entry.id = 'local-' + (crypto.randomUUID?.() || Date.now().toString(36))
     entry.personal = true
+    entry.libraryId=libraryItemId(entry)
     const next = [entry, ...saved.filter((s) => s.id !== entry.id)]
     if (store('scores', next)) {
       saved = next
@@ -1278,7 +1406,7 @@
     } else if (reference && !play) {
       load(reference, false, false)
     } else {
-      current = reference || fallback
+      current = linkedScore(reference || fallback)
       setText(current.code)
       $('scoreName').value = current.name
       if (current.generator) $('seed').value=current.generator.seed
@@ -1289,11 +1417,11 @@
   function load(item, play = true, manual = true, {openCode = true, armOnLive = play} = {}) {
     if (!item) return
     if (modified && archive() === false) return
-    current = item
+    current = linkedScore(item)
     baseMode = hasSketch(item.code) ? (item.baseMode === 'hidden' ? 'hidden' : 'visible') : 'empty'
-    if (item.generator) {
-      fold = item.generator.fold
-      $('seed').value = item.generator.seed
+    if (current.generator) {
+      fold = current.generator.fold
+      $('seed').value = current.generator.seed
       selectButtons('[data-fold]','fold',fold)
     }
     revision++
@@ -1347,7 +1475,9 @@
               url.searchParams.delete('sketch_id')
               url.searchParams.set('code', btoa(encodeURIComponent(code)))
               history.pushState({
-                fosfenoRun: historySession, fosfenoEntry: historySession + '/' + ++historySequence
+                fosfenoRun: historySession, fosfenoEntry: historySession + '/' + ++historySequence,
+                fosfenoLibrary:current.libraryId ? {libraryId:current.libraryId,name:$('scoreName').value,
+                  id:current.id,personal:current.personal} : undefined
               }, '', url)
               if (baseMode==='hidden') markBaseEntry()
             } catch {
@@ -1408,6 +1538,7 @@
   }
   $('run').onclick = runAll
   $('applySectors').onclick = async () => {
+    codeBrowser.flush()
     if (applying || live || !(codePending() || sectors.dirty)) return
     const restoreFocus = document.activeElement===$('applySectors')
     applying=true
@@ -1453,6 +1584,7 @@
     }
   }
   $('exportJS').onclick = () => {
+    if (codeBrowser.scoped) return codeBrowser.download()
     const link = document.createElement('a'),
       url = URL.createObjectURL(new Blob([cm.getValue()], { type: 'text/javascript' }))
     link.href = url
@@ -1463,15 +1595,25 @@
   function libraryRow(item, play) {
     const row = document.createElement('div')
     row.className = 'library-row'
-    const title = document.createElement('div'), open = document.createElement('button'),
+    const title = document.createElement('button'), open = document.createElement('button'),
       label = document.createElement('strong'), group = document.createElement('small')
     title.className = 'library-title'
+    title.type='button'
+    title.dataset.action='editVisual'
+    title.setAttribute('aria-label','Editar parámetros de '+item.name)
+    title.setAttribute('aria-haspopup','dialog')
     const region = layerTarget()
     open.className = 'library-item'
     const intent = region ? 'Usar en capa' : play && live ? 'Usar de fondo' : 'Preparar fondo'
     label.textContent = item.name
     group.textContent = item.group || 'Mi biblioteca'
-    title.append(label, group)
+    const edit=document.createElement('span')
+    edit.className='library-edit-label'
+    edit.innerHTML=icon('sliders')
+    const editText=document.createTextNode('Editar')
+    edit.append(editText)
+    title.append(label,group,edit)
+    title.onclick=()=>openLibraryParameters(item,play,region)
     open.onclick = () => {
       if (!region && open.classList.contains('assigned-base')) return removeStudioBase()
       if (!region) return load(item,play && live,true,{openCode:!play,armOnLive:play})
@@ -1483,17 +1625,21 @@
     mix.setAttribute('aria-label', 'Mezclar ' + item.name)
     const target = region || sectors.principal
     const refresh = baseCode => {
-      const isBase = !region && baseCode === item.code
+      const isBase = !region && baseMatchesLibrary(item,baseCode)
       open.classList.toggle('assigned-base', !!isBase)
       open.textContent = isBase ? 'Quitar fondo' : region ? 'En capa' : play && live ? 'De fondo' : 'Preparar'
       open.title = (isBase ? 'Quitar fondo' : intent) + ' · ' + item.name
       open.setAttribute('aria-label',open.title)
-      const on = target.fx.some(f=>f.kind==='library' && f.enabled!==false && f.name===item.name && f.code===item.code)
-      mix.setAttribute('aria-pressed',on)
+      const effect=findLibraryEffect(target,item)
+      const on=effect && effect.enabled!==false
+      const adjusted=isBase && baseCode!==item.code || isLibraryVariation(item,effect)
+      const caption=adjusted?'Editar variante':'Editar'
+      if (editText.data!==caption) editText.data=caption
+      mix.setAttribute('aria-pressed',String(!!on))
       mix.textContent = on ? 'En mezcla' : 'Mezclar'
       strength.hidden=!on
       if (on) {
-        slider.value=Math.round(target.fx.find(f=>f.kind==='library' && f.name===item.name && f.code===item.code).value*100)
+        slider.value=Math.round(effect.value*100)
         level.value=slider.value+'%'
         paintRange(slider)
       }
@@ -1503,7 +1649,7 @@
     slider.type='range'; slider.min=0; slider.max=100
     slider.setAttribute('aria-label','Mezcla de '+item.name)
     slider.oninput=()=>{
-      const index=target.fx.findIndex(f=>f.kind==='library' && f.name===item.name && f.code===item.code)
+      const index=target.fx.indexOf(findLibraryEffect(target,item))
       if (index<0) return
       sectors.effectAmount(target,index,Number(slider.value)/100)
     }
@@ -1513,6 +1659,84 @@
     refresh(baseMode==='empty' ? '' : cm.getValue())
     row.append(title, open, mix, strength)
     return row
+  }
+  function libraryMenuContext(node) {
+    const row=node.closest('.library-row')
+    if (!row) return null
+    const title=row.querySelector('[data-action="editVisual"]'), open=row.querySelector('.library-item'), mix=row.querySelector('.line-button')
+    if (!title || !open || !mix) return null
+    return {name:title.querySelector('strong').textContent,menu:['inspect','use','mix'],keys:[],
+      labels:{inspect:'Editar parámetros',use:open.textContent,mix:mix.getAttribute('aria-pressed')==='true'?'Pausar mezcla':'Mezclar'},
+      run:action=>({inspect:title,use:open,mix})[action]?.click()}
+  }
+  function saveVisualCopy(code,name) {
+    const id='local-'+(crypto.randomUUID?.() || Date.now().toString(36))
+    const entry={id,name,code,personal:true}
+    const next=[entry,...saved]
+    if (!store('scores',next)) throw new Error('No se pudo guardar la variante en este navegador.')
+    saved=next
+    if (view==='library') library()
+    return 'Variante guardada en Biblioteca → Mis sketches.'
+  }
+  const visualInspector=new VisualParameterInspector(()=>engine?.hydra.generator.glslTransforms || {})
+  function targetCaption(region,layer) {
+    return region?.id ? sectorLabel(region)+' · '+sectorLayerLabel(layer) : 'Toda la visual'
+  }
+  function openEffectParameters(ref) {
+    const {sector,layer,effect}=studioStack.resolve(ref)
+    const base=ref.kind==='base', layerCode=ref.kind==='code'
+    const original=base?cm.getValue():layerCode?layer.code:effect?.code
+    if (!original) return
+    const priorBase=current
+    const name=base?($('scoreName').value || 'Fondo'):layerCode?sectorLayerLabel(layer):effect.name
+    const kind=effect?.kind || 'library'
+    const save=kind==='operator' ? async(code,title)=>{
+      await creations.add(title,packComposition({kind,name:title,code,definitions:effect.definitions || [],
+        origin:effect.origin || [],regions:[]}),'operator')
+      return 'Operador guardado en Biblioteca → Proyectos.'
+    } : layerCode ? null : saveVisualCopy
+    visualInspector.open({name,kind,definitions:effect?.definitions,code:original,save,
+      destination:base?'Fondo':targetCaption(sector,layer)+(layerCode?' · Código de capa':' · Efecto'),
+      action:live?'Aplicar cambios':'Preparar cambios',
+      apply(code) {
+        if (base ? current!==priorBase || cm.getValue()!==original :
+            !sectors.containsLayer(layer) || (layerCode?layer.code!==original:!layer.fx.includes(effect) || effect.code!==original))
+          throw new Error('El contenido cambió durante la edición. Volvé a abrir sus parámetros.')
+        if (code===original) return
+        if (base) {
+          current={...current,libraryId:linkLibraryInstance(current),generator:undefined}
+          cm.replaceRange(code,{line:0,ch:0},cm.posFromIndex(original.length),'visual-parameters')
+          refreshLibraryIndicators()
+        } else {
+          if (layerCode) layer.code=code
+          else writeEffectCode(effect,code)
+          sectors.changed()
+        }
+      }})
+  }
+  function openLibraryParameters(item,play,region) {
+    const sector=sectorTarget(), layer=region || sectors.principal
+    const ref={sectorId:sector?.id || 0,layerId:sectorLayerId(layer)}
+    const selected=studioStack.active()
+    const preferred=selected.kind==='effect' && selected.sectorId===ref.sectorId && selected.layerId===ref.layerId
+      ? studioStack.resolve(selected).effect : null
+    const effect=findLibraryEffect(layer,item,preferred)
+    if (!region && baseMatchesLibrary(item) && !(preferred && preferred===effect))
+      return openEffectParameters({...ref,kind:'base'})
+    if (effect) return openEffectParameters({...ref,kind:'effect',effectId:studioStack.effectKey(effect)})
+    function variant(code) {
+      if (!sectors.containsLayer(layer)) throw new Error('El destino ya no está en la composición.')
+      return {...item,code,libraryId:libraryItemId(item),generator:code===item.code?item.generator:undefined}
+    }
+    visualInspector.open({name:item.name,code:item.code,kind:'library',destination:targetCaption(sector,layer),
+      action:region?'Usar en capa':live && play?'Usar de fondo':'Preparar fondo',save:saveVisualCopy,
+      apply(code) {
+        const edited=variant(code)
+        if (region) sectors.toggleLibrary(region,edited,true)
+        else if (!load(edited,play && live,true,{openCode:!play,armOnLive:play}))
+          throw new Error('No se pudo preparar el fondo.')
+      },
+      mix:code=>sectors.toggleLibrary(layer,variant(code),false)})
   }
   function showLibraryShelf(name) {
     if (name!=='loops') loops.stopPreview()
@@ -1599,24 +1823,12 @@
   )
   selectButtons('[data-fold]', 'fold', 'libre')
   function seedSketch(seed,symmetry = 'libre') {
+    seed=canonicalSeed(seed)
     return {id:'seed-'+seed,name:'Semilla '+seed,code:growSketch(seed,symmetry),generator:{seed,fold:symmetry}}
   }
   function randomSeed(previous) {
     const roll=crypto.getRandomValues(new Uint32Array(1))[0]
-    return previous!=null && previous!=='' && roll===Number(previous) ? (roll+1)>>>0 : roll
-  }
-  function seedRecipe(item) {
-    const match = item?.code?.match(/^\/\/ Semilla (\d+) · (libre|x|y|radial|ninguna)\r?\n/)
-    if (!match) return null
-    const seed = Number(match[1])
-    if (!Number.isInteger(seed) || seed<0 || seed>4294967295) return null
-    // Legacy saved layers contain the generated code, but not the original symmetry setting.
-    const variants = new Set([item.generator?.fold,'libre',match[2]])
-    for (const variant of variants) {
-      if (['libre','x','y','radial'].includes(variant) && growSketch(seed,variant)===item.code)
-        return {seed,fold:variant}
-    }
-    return null
+    return String(roll)===canonicalSeed(previous) ? (roll+1)>>>0 : roll
   }
   function selectedSeedEffect(layer) {
     const ref = studioStack.active()
@@ -1682,26 +1894,28 @@
     return seedSketch(seed)
   }
   function refreshSeedMix() {
-    const seed = $('seed').value.trim()
+    const seed = canonicalSeed($('seed').value)
+    if (seed!==null || !$('seed').value.trim()) $('seed').removeAttribute('aria-invalid')
     const chosen = selectedSeedEffect(sectors.principal)
-    const isBase = !chosen && !layerTarget() && baseMode!=='empty' && current.generator &&
-      String(current.generator.seed)===seed && current.generator.fold===fold &&
-      current.code===cm.getValue()
+    const baseRecipe=!chosen && !layerTarget() && baseMode!=='empty' && current.code===cm.getValue() && seedRecipe(current)
+    const isBase = baseRecipe && baseRecipe.seed===seed && baseRecipe.fold===fold
     $('grow').textContent = isBase ? 'Quitar fondo' : chosen ? 'Actualizar efecto' :
       layerTarget() ? 'Usar en capa' : live ? 'Usar de fondo' : 'Preparar fondo'
     $('grow').dataset.assigned = String(!!isBase)
-    const mixed = (layerTarget() || sectors.principal).fx.some(fx => fx.kind === 'library' &&
-      fx.enabled !== false && fx.name === 'Semilla ' + seed && fx.code === growSketch(Number(seed),fold))
+    const layer=layerTarget() || sectors.principal
+    const effect=seed!==null && layer.fx.some(fx=>fx.kind==='library') && findLibraryEffect(layer,seedSketch(seed,fold))
+    const mixed=!!effect && effect.enabled!==false
     $('mixSeed').textContent = mixed ? 'En mezcla' : 'Mezclar'
     $('mixSeed').setAttribute('aria-pressed',String(mixed))
   }
   function generate(fromField, manual = true, mix = false) {
     const raw = fromField ? $('seed').value.trim() : ''
-    if (raw && (!/^\d+$/.test(raw) || Number(raw) > 4294967295)) {
-      notify('Usá una semilla entera entre 0 y 4294967295.')
+    const seed = raw ? canonicalSeed(raw) : String(randomSeed($('seed').value))
+    if (seed===null) {
+      $('seed').setAttribute('aria-invalid','true')
+      notify('Escribí un número como -123,456 o 98765432109876543210.')
       return
     }
-    const seed = raw ? Number(raw) : randomSeed($('seed').value.trim())
     const scoped = manual && (layerTarget() || (selectedSeedEffect(sectors.principal) && sectors.principal))
     const target = scoped || (manual && (mix || !fromField && baseMode!=='visible') ? sectors.principal : null)
     const item = seedSketch(seed,fold)
@@ -1711,12 +1925,12 @@
       $('seed').value = seed
       if (mix) {
         sectors.toggleLibrary(target,item,false)
-        effect=target.fx.find(f=>f.kind==='library' && f.name===item.name && f.code===item.code)
+        effect=findLibraryEffect(target,item)
       } else {
         effect=seedEffect(target)
-        if (effect) Object.assign(effect,{name:item.name,code:item.code,generator:item.generator,enabled:true})
+        if (effect) Object.assign(effect,{name:item.name,code:item.code,generator:item.generator,libraryId:libraryItemId(item),enabled:true})
         else {
-          effect={kind:'library',name:item.name,code:item.code,value:1,generator:item.generator}
+          effect={kind:'library',name:item.name,code:item.code,value:1,generator:item.generator,libraryId:libraryItemId(item)}
           target.fx.push(effect)
         }
         sectors.changed()
@@ -1732,7 +1946,7 @@
   }
   $('grow').onclick = () => $('grow').dataset.assigned === 'true' ? removeStudioBase() : generate(true)
   $('mixSeed').onclick = () => generate(true,true,true)
-  $('seed').oninput = refreshSeedMix
+  $('seed').oninput = ()=>{ $('seed').removeAttribute('aria-invalid'); refreshSeedMix() }
   $('randomizeSeed').onclick = () => {
     const field=$('seed')
     field.value=randomSeed(field.value.trim())
@@ -1911,6 +2125,11 @@
   document.addEventListener('keydown', (e) => {
     if (e.defaultPrevented || e.isComposing || document.querySelector('dialog[open]') ||
         (EditorMenu.editing(e.target) && !e.target.closest('.CodeMirror'))) return
+    if (codeBrowser.scoped && !$('editorPage').hidden && e.key==='Enter' && (e.ctrlKey || e.metaKey || e.altKey)) {
+      e.preventDefault()
+      codeBrowser.flush()
+      return
+    }
     if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
       e.preventDefault()
       if (e.shiftKey) runAll()
@@ -2080,7 +2299,8 @@
 
   function captureComposition() {
     const {painting,brush,brushSpeed,brushDetail,brushInverse,internalPulse,sensitivity,quality} = state
-    return {name:$('scoreName').value.trim() || 'Sin título',code:cm.getValue(),regions:sectors.snapshot(),selectedSector:sectors.id,
+    const {name,code,libraryId,generator}=draft()
+    return {name,code,libraryId,generator,regions:sectors.snapshot(),selectedSector:sectors.id,
       input:inputs[0].current?.file, inputRole:inputs[0].current?.role, inputKind:inputs[0].current?.kind || null,
       music:sound.music.capture(),
       inputModelView:inputs[0].current?.modelView,
@@ -2144,7 +2364,8 @@
       if (medium) medium.modelView=project.inputModelView
       if (medium && !shared) await prepareVisual(medium,null,medium.file,new AbortController().signal)
       if (version !== revision) throw new Error('El código cambió durante la carga. Volvé a elegir la composición.')
-      const item = {id:'obra',name:project.name,code:project.code,baseMode:project.settings.baseMode}
+      const item = {id:'obra',name:project.name,code:project.code,libraryId:project.libraryId,
+        generator:project.generator,baseMode:project.settings.baseMode}
       if (!load(item,false,true,{openCode})) return
       if (!await execute(item.code,{fresh:true})) return
       if (medium) { inputs[0].cancel(); inputs[0].replace(medium); medium=null }
@@ -3013,7 +3234,8 @@
         const code = decodeURIComponent(atob(query.get('code')))
         if (!code.trim()) return { error: 'El enlace no contiene código Hydra para abrir.' }
         if (code.trim() === blankScore) return { emptyTemplate: true }
-        return { item: { id: 'enlace', name: 'Sketch de enlace', code } }
+        const origin=history.state?.fosfenoLibrary
+        return { item: {id:'enlace',name:'Sketch de enlace',...origin,code} }
       } catch {
         return { error: 'El enlace no contiene código Hydra válido.' }
       }

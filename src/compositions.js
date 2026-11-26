@@ -45,6 +45,8 @@ async function unpackComposition(blob) {
     return p
   }
   if (p.kind != null && p.kind!=='composition') invalid()
+  const validLibraryId=id=>id==null || typeof id==='string' && /^(sketch|saved|seed):[\s\S]+$/.test(id)
+  if (!validLibraryId(p.libraryId)) invalid()
   let offset = header+bytes
   const files = p.assets.map(a => {
     if (!a || !Number.isSafeInteger(a.size) || a.size < 0 || offset+a.size > blob.size ||
@@ -56,7 +58,7 @@ async function unpackComposition(blob) {
   if (offset !== blob.size) invalid()
   const fileAt = i => i === null ? null : Number.isInteger(i) && files[i] ? files[i] : invalid()
   const containsPose = p.inputModelView!=null || p.regions.some(region=>region?.modelView!=null || region?.layers?.some?.(layer=>layer?.modelView!=null))
-  const readPose = containsPose ? (await import('./pose-3d.mjs?v=3.0')).readPose : null
+  const readPose = containsPose ? (await import('./pose-3d.mjs?v=3.1')).readPose : null
   if (p.inputModelView!=null) p.inputModelView=readPose(p.inputModelView)
   const finite = (v,min,max) => Number.isFinite(v) && v>=min && v<=max
   function readLayer(layer) {
@@ -74,7 +76,7 @@ async function unpackComposition(blob) {
         (layer.code != null && typeof layer.code!=='string') ||
         !Array.isArray(layer.fx) || !layer.fx.every(f=>{
           if (!f || typeof f.name!=='string' || (f.enabled!=null && typeof f.enabled!=='boolean')) return false
-          if (f.kind==='library') return typeof f.code==='string' && finite(f.value,0,1)
+          if (f.kind==='library') return typeof f.code==='string' && finite(f.value,0,1) && validLibraryId(f.libraryId)
           if (f.kind==='operator') return typeof f.code==='string' && /^\s*\./.test(f.code) &&
             Array.isArray(f.definitions) && f.definitions.every(d=>typeof d==='string')
           return !f.kind && Object.hasOwn(sectorEffects,f.name) && finite(f.value,sectorEffects[f.name][1],sectorEffects[f.name][2])

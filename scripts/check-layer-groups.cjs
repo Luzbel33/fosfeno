@@ -1,6 +1,7 @@
 const assert = require('node:assert/strict')
 const { chromium } = require('playwright')
 const { readFile } = require('node:fs/promises')
+const { openStudio } = require('./studio-nav.cjs')
 
 ;(async () => {
   const url = process.argv[2] || 'http://127.0.0.1:8736/'
@@ -102,7 +103,7 @@ const { readFile } = require('node:fs/promises')
     console.log('Loop playback, hierarchy and local save/reload passed')
 
     assert.ok(await id('libraryPage').isVisible(),'selecting layers keeps the library open')
-    await page.locator('#studioNav [data-view="code"]').click()
+    await openStudio(page,'base')
     await page.getByRole('textbox',{name:'Nombre del sketch'}).fill('QA grupo y loop')
     await page.locator('button[data-view="library"]').click()
     await page.locator('[data-shelf=projects]').click()

@@ -40,7 +40,44 @@ async function check(page,width) {
   await id('seed').fill('777')
   await click('grow')
   assert.equal(await code(),mirrored)
+  assert.equal(await id('seed').getAttribute('inputmode'),'decimal')
+  const digits='987654321098765432109876543210'
+  const prefix='-'+digits+'.'+'0'.repeat(90)
+  const exact=prefix+'37'
+  await id('seed').fill('-00'+digits+','+'0'.repeat(90)+'3700')
+  await click('grow')
+  const decimal=await code()
+  assert.ok(decimal.startsWith('// Semilla '+exact+' · x\n'))
+  assert.equal(await id('seed').inputValue(),exact)
+  await id('seed').fill(prefix+'38')
+  await click('grow')
+  assert.notEqual((await code()).split('\n').slice(1).join('\n'),decimal.split('\n').slice(1).join('\n'))
+  await id('seed').fill('3,1.4')
+  await click('grow')
+  assert.equal(await id('seed').getAttribute('aria-invalid'),'true')
+  await id('seed').fill(exact)
+  await click('grow')
+  assert.equal(await code(),decimal)
+  assert.equal(await id('seed').getAttribute('aria-invalid'),null)
+  if (width>1000) {
+    await openStudio(page,'base')
+    await click('run')
+    await page.waitForFunction(score=>{
+      const encoded=new URL(location.href).searchParams.get('code')
+      return encoded && decodeURIComponent(atob(encoded))===score
+    },decimal)
+    const shared=await page.context().browser().newPage({serviceWorkers:'block'})
+    try {
+      await shared.goto(page.url())
+      await shared.waitForFunction(score=>window.cm?.getValue()===score,decimal)
+      await shared.locator('#editSeed').click()
+      assert.equal(await shared.locator('#seed').inputValue(),exact)
+      assert.equal(await shared.locator('#grow').getAttribute('data-assigned'),'true')
+      assert.equal(await shared.locator('[data-fold=x]').getAttribute('aria-pressed'),'true')
+    } finally { await shared.close() }
+  }
   assert.ok(await id('transport').evaluate(e=>e.scrollWidth<=e.clientWidth+1))
+  assert.ok(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1))
 
   await openStudio(page,'sectors')
   await click('removeBase')
@@ -50,12 +87,26 @@ async function check(page,width) {
   await click('editSeed')
   assert.match(await id('seed').inputValue(),/^\d+$/)
   assert.equal(await code(),'')
-  await click('randomizeSeed')
-  const candidate=await id('seed').inputValue()
+  const candidate=digits+'.125'
+  await id('seed').fill(digits+',1250')
   await click('mixSeed')
   await page.waitForFunction(seed=>fosfenoStack.snapshot().rows.find(row=>!row.id).entries[0].effects
     .some(effect=>effect.name==='Semilla '+seed && effect.enabled),candidate)
   assert.equal(await code(),'')
+  if (width>1000) {
+    await page.evaluate(async()=>{
+      const file=captureFosfenoMapping()
+      await restoreFosfenoMapping(new File([file],'Semillas.fos'))
+    })
+    await click('editSeed')
+    assert.equal(await id('seed').inputValue(),candidate)
+    assert.equal(await id('mixSeed').getAttribute('aria-pressed'),'true')
+    await id('seed').fill(candidate.replace('.',',')+'0')
+    await click('mixSeed')
+    assert.equal(await id('mixSeed').getAttribute('aria-pressed'),'false')
+    await click('mixSeed')
+    assert.equal(await id('mixSeed').getAttribute('aria-pressed'),'true')
+  }
 
   await click('openMapping')
   const map=page.frameLocator('#mappingFrame')

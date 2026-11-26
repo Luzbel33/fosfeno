@@ -1,4 +1,25 @@
 const sectorShapes = ['Rectángulo', 'Cuadrado', 'Círculo', 'Óvalo', 'Rombo', 'Triángulo', 'Libre']
+// A personal edition and the catalog score it came from can coexist in one mix.
+function libraryItemId(item) {
+  if (!item) return
+  if (item.personal && item.id!=null) return 'saved:'+item.id
+  if (item.libraryId) return item.libraryId
+  if (item.generator) return 'seed:'+item.generator.fold+':'+String(item.generator.seed)
+  if (item.id!=null) return 'sketch:'+item.id
+}
+function matchesLibraryItem(item,instance) {
+  if (!item || !instance) return false
+  return instance.libraryId ? instance.libraryId===libraryItemId(item) :
+    typeof item.code==='string' && item.code===instance.code
+}
+function isLibraryVariation(item,instance) {
+  return matchesLibraryItem(item,instance) && item.code!==instance.code
+}
+function findLibraryEffect(layer,item,preferred) {
+  const matches=effect=>effect?.kind==='library' && matchesLibraryItem(item,effect)
+  if (preferred && layer.fx.includes(preferred) && matches(preferred)) return preferred
+  return layer.fx.find(matches)
+}
 const sectorLabel = sector => sector?.id ? sector.shape + ' ' + sector.id : 'Toda la visual'
 // The original sector content is the base layer, including in older saved projects.
 const sectorLayers = sector => [sector,...(sector.layers || [])]
@@ -440,12 +461,14 @@ class SectorRenderer {
 }
 
 class SectorDesk {
-  constructor({live, input, inputFile, bass, connect, disconnect, onUpdate}) {
+  constructor({live, input, inputFile, bass, connect, disconnect, onUpdate, linkLibraryInstance, seedRecipe}) {
     this.live = live
     this.input = input
     this.inputFile = inputFile
     this.bass = bass
     this.onUpdate = onUpdate
+    this.linkLibraryInstance=linkLibraryInstance
+    this.seedRecipe=seedRecipe
     this.effectControls = new WeakMap()
     this.layerSelection = new WeakMap()
     this.groupSelection = new Set()
@@ -886,12 +909,22 @@ class SectorDesk {
     region.fx.push(effect)
     this.changed()
   }
-  toggleLibrary(region,item,replace) {
-    const index = region.fx.findIndex(f=>f.kind==='library' && f.name===item.name && f.code===item.code)
-    if (index!==-1 && !replace) {
-      region.fx[index].enabled=region.fx[index].enabled===false
+  toggleLibrary(region,item,replace,preferred) {
+    const effect=findLibraryEffect(region,item,preferred)
+    if (effect) {
+      effect.libraryId ??= libraryItemId(item)
+      if (replace) {
+        region.fx=region.fx.filter(f=>f.kind!=='library' || f===effect)
+        effect.enabled=true
+        effect.value=1
+      } else effect.enabled=effect.enabled===false
       this.changed()
-    } else this.add(region,{kind:'library',name:item.name,code:item.code,value:replace ? 1 : .5},replace)
+    } else {
+      const next={kind:'library',name:item.name,code:item.code,libraryId:libraryItemId(item),value:replace ? 1 : .5}
+      const recipe=item.generator && this.seedRecipe?.(item)
+      if (recipe) next.generator=recipe
+      this.add(region,next,replace)
+    }
   }
   toggleQuick(region,name,code,definition) {
     const index=region.fx.findIndex(f=>f.preset===name)
@@ -1494,7 +1527,19 @@ class SectorDesk {
     }
     try {
       for (const entry of data) {
-        const copy = layer => ({...layer,fx:layer.fx.map(effect=>({...effect}))})
+        const copy = layer => ({...layer,fx:layer.fx.map(effect=>{
+          const next={...effect}
+          if (next.kind==='library' && !next.libraryId) {
+            const key=this.linkLibraryInstance?.(next)
+            if (key) next.libraryId=key
+          }
+          if (next.generator && this.seedRecipe) {
+            const recipe=this.seedRecipe(next)
+            if (recipe) next.generator=recipe
+            else delete next.generator
+          }
+          return next
+        })})
         const region = {...copy(entry),layers:entry.layers?.map(copy)}
         for (const layer of sectorLayers(region)) {
           const file = layer.file

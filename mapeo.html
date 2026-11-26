@@ -6,8 +6,8 @@
     <meta name="theme-color" content="#101211">
     <title>Fosfeno · Mapeo</title>
     <link rel="icon" href="assets/mark.svg">
-    <link rel="stylesheet" href="style.css?v=3.0.2">
-    <link rel="stylesheet" href="mapping.css?v=3.0">
+    <link rel="stylesheet" href="style.css?v=3.1">
+    <link rel="stylesheet" href="mapping.css?v=3.1">
     <script>
       if (window === window.parent) {
         const url = new URL('./', location.href)
@@ -130,6 +130,10 @@
           <div id="mapLayerControls" class="map-properties" hidden>
             <div id="mapModel" hidden></div>
             <label class="map-layer-label">Nombre<input id="mapLayerName" type="text" maxlength="120" autocomplete="off" aria-label="Nombre del objeto"></label>
+            <div class="map-controls">
+              <button id="mapObjectCode" type="button">Ver definición</button>
+              <button id="mapCodeOrigin" type="button" hidden>Código de origen ↗</button>
+            </div>
             <div id="mapSolidPanel" class="solid-panel" hidden>
               <div class="map-solid-faces" role="group" aria-label="Cara a editar" id="mapSolidFaces"></div>
               <strong id="mapFaceLabel"></strong>
@@ -245,11 +249,11 @@
     <input id="mapReplaceFile" type="file" accept="image/*,video/*,.glb,model/gltf-binary" hidden>
     <input id="mapPhotoFile" type="file" accept="image/*" hidden>
     <input id="mapProjectFile" type="file" accept=".fosmap,application/octet-stream" hidden>
-    <script src="src/studio-storage.js"></script>
+    <script src="src/studio-storage.js?v=3.1"></script>
     <script src="vendor/omggif/omggif.js"></script>
-    <script src="src/gif-input.js?v=3.0"></script>
-    <script src="src/visual-input.js?v=3.0"></script>
-    <script src="src/editor-menu.js?v=3.0"></script>
-    <script type="module" src="src/mapping.js?v=3.0" onerror="document.getElementById('mapBoot').textContent='No se pudo cargar Mapeo. Abrí Fosfeno por localhost o HTTPS y recargá.'"></script>
+    <script src="src/gif-input.js?v=3.1"></script>
+    <script src="src/visual-input.js?v=3.1"></script>
+    <script src="src/editor-menu.js?v=3.1"></script>
+    <script type="module" src="src/mapping.js?v=3.1" onerror="document.getElementById('mapBoot').textContent='No se pudo cargar Mapeo. Abrí Fosfeno por localhost o HTTPS y recargá.'"></script>
   </body>
 </html>

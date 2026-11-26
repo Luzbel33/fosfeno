@@ -255,13 +255,67 @@ function orbitInk(rounds, radius) {
   ].join('\n')
 }
 
-// A seed builds a signal graph, not an image. Its parameters and routing are the exported score.
-function growSketch(seed, symmetry = 'libre') {
-  let v = seed >>> 0
-  const random = () => {
-    v = (Math.imul(1664525, v) + 1013904223) >>> 0
-    return v / 4294967296
+function canonicalSeed(value) {
+  const match=/^([+−-]?)(\d*)(?:[.,](\d*))?$/.exec(String(value).trim())
+  if (!match || !(match[2] || match[3])) return null
+  const whole=match[2].replace(/^0+/,'') || '0'
+  const fraction=match[3] || ''
+  let end=fraction.length
+  while (end && fraction[end-1]==='0') end--
+  const magnitude=end ? whole+'.'+fraction.slice(0,end) : whole
+  return (match[1]==='-' || match[1]==='−') && magnitude!=='0' ? '-'+magnitude : magnitude
+}
+
+function sketchRandom(text) {
+  // Uint32 scores created before decimal seeds must remain byte-for-byte reproducible.
+  if (/^\d{1,10}$/.test(text) && (text.length<10 || text<='4294967295')) {
+    let state=Number(text)
+    return ()=>{
+      state=(Math.imul(1664525,state)+1013904223)>>>0
+      return state/4294967296
+    }
   }
+  // FNV-1a 128 (RFC 9923) consumes the complete ASCII decimal, including its sign.
+  let hash=0x6c62272e07bb014262b821756295c58dn
+  for (let i=0;i<text.length;i++)
+    hash=BigInt.asUintN(128,(hash^BigInt(text.charCodeAt(i)))*0x1000000000000000000013bn)
+  const words=[0n,32n,64n,96n].map(shift=>Number((hash>>shift)&0xffffffffn))
+  if (!words.some(Boolean)) words[0]=1
+  // xoshiro128** 1.1, Blackman & Vigna, public domain: https://prng.di.unimi.it/xoshiro128starstar.c
+  const rotate=(word,bits)=>(word<<bits)|(word>>>(32-bits))
+  const next=()=>{
+    const out=Math.imul(rotate(Math.imul(words[1],5),7),9)>>>0
+    const shifted=words[1]<<9
+    words[2]^=words[0]
+    words[3]^=words[1]
+    words[1]^=words[2]
+    words[0]^=words[3]
+    words[2]^=shifted
+    words[3]=rotate(words[3],11)
+    return out/4294967296
+  }
+  // Diffuse the final characters through all words before choosing a graph.
+  for (let i=0;i<8;i++) next()
+  return next
+}
+
+function seedRecipe(item) {
+  const match=item?.code?.match(/^\/\/ Semilla ([^\s]+) · (libre|x|y|radial|ninguna)\r?\n/)
+  if (!match) return null
+  const seed=canonicalSeed(match[1])
+  if (seed===null) return null
+  // Older files and code links may carry only the resolved symmetry in the header.
+  for (const fold of new Set([item.generator?.fold,'libre',match[2]]))
+    if (['libre','x','y','radial'].includes(fold) && growSketch(seed,fold)===item.code)
+      return {seed,fold}
+  return null
+}
+
+// The exported score contains the whole signal graph and its original seed.
+function growSketch(seed, symmetry = 'libre') {
+  const text=canonicalSeed(seed)
+  if (text===null) throw new Error('Semilla inválida.')
+  const random=sketchRandom(text)
   const pick = (items) => items[Math.floor(random() * items.length)]
   const num = (lo, hi) => Number((lo + (hi - lo) * random()).toFixed(3))
   const int = (lo, hi) => Math.floor(num(lo, hi + 0.999))
@@ -291,7 +345,7 @@ function growSketch(seed, symmetry = 'libre') {
     ])
   const fold = symmetry === 'libre' ? pick(['radial', 'x', 'y', 'ninguna']) : symmetry
   const mirror = fold === 'x' ? 'espejoX' : fold === 'y' ? 'espejoY' : null
-  const lines = ['// Semilla ' + (seed >>> 0) + ' · ' + fold, 'speed = ' + num(0.55, 1.1)]
+  const lines = ['// Semilla ' + text + ' · ' + fold, 'speed = ' + num(0.55, 1.1)]
   if (mirror) lines.push('', MIRRORS[mirror])
   lines.push('', source(), '  ' + transform(), '  .out(o1)', '')
   const topology = int(0, 4)

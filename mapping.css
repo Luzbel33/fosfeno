@@ -247,3 +247,5 @@
 .map-stack-palette input { width:100%; min-width:0; }
 .map-stack-choices { display:flex; flex-wrap:wrap; gap:.3rem; max-height:min(13rem,29dvh); overflow:auto; align-content:flex-start; }
 .map-stack-choices button { max-width:100%; overflow-wrap:anywhere; text-align:left; }
+.map-choice-pair { display:inline-flex; align-items:stretch; gap:1px; max-width:100%; }
+.map-choice-pair button:last-child { color:var(--green); }

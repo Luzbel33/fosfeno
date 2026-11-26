@@ -1,10 +1,10 @@
-# Fosfeno 3.0.2 · Hydra en vivo
+# Fosfeno 3.1 · Hydra en vivo
 
 Editor de live coding y sintetizador de video con Hydra. El JavaScript del sketch genera la imagen base. Los sectores opcionales componen sus efectos encima de esa salida. Podés empezar en blanco, editar una pieza existente o generar un nuevo grafo de señales a partir de una semilla.
 
 Al entrar sin un enlace de sketch, Fosfeno genera una pieza con una semilla aleatoria. La semilla aparece en el nombre y en el código. Los borradores se conservan y los enlaces identificados recuperan su pieza. *MULTIVERSE*, de e_e (@eerie_ear), queda en la Biblioteca con el código y la atribución originales. [Abrir el mismo sketch en Hydra](https://hydra.ojack.xyz/?sketch_id=eerie_ear_0) · [Comparación en navegador y límites](docs/paridad-hydra.md)
 
-[Abrir el estudio](https://luzbel33.github.io/fosfeno/abrir.html?v=3.0.2) · [Abrir Mapeo](https://luzbel33.github.io/fosfeno/abrir.html?v=3.0.2&mode=mapeo) · [Abrir Glitch River de Flor de Fuego](https://luzbel33.github.io/fosfeno/abrir.html?v=3.0.2&sketch_id=flor_2) · [Ver el editor en movimiento](media/fosfeno-demo.mp4)
+[Abrir el estudio](https://luzbel33.github.io/fosfeno/abrir.html?v=3.1) · [Abrir Mapeo](https://luzbel33.github.io/fosfeno/abrir.html?v=3.1&mode=mapeo) · [Abrir Glitch River de Flor de Fuego](https://luzbel33.github.io/fosfeno/abrir.html?v=3.1&sketch_id=flor_2) · [Ver el editor en movimiento](media/fosfeno-demo.mp4)
 
 ## Tocar una visual
 
@@ -29,6 +29,8 @@ En Blender, elegí **Archivo → Exportar → glTF 2.0 → glTF Binary (.glb)**.
 Al seleccionar el modelo, abrí **Orientación y movimiento** para encuadrarlo, girarlo o asignarle una trayectoria. **Ortográfica** mantiene las líneas paralelas y **Perspectiva** agranda las partes cercanas a la cámara. Los proyectos conservan el archivo original y su configuración. La animación se controla desde Fosfeno. Los clips propios de Blender quedan fuera de la reproducción. El visor local usa Three.js r187 y su GLTFLoader. [Código de Three.js](https://github.com/mrdoob/three.js/tree/r187) · [Licencia MIT](vendor/three/LICENSE)
 
 ### Leer, ajustar y ejecutar código
+
+**Código** sigue la selección de la pila. El selector de destino indica qué estás leyendo y permite pasar del fondo al sketch de una capa, a un operador o a sus definiciones. Con el fondo vacío, elegí la visual mezclada para editar su propio programa. En Mapeo, **Ver definición** muestra los datos del objeto. Si una cara o un recorte usa Hydra, **Código de origen** lleva a su señal. **Volver a Mapeo** recupera la superficie.
 
 El **?** junto al nombre del sketch abre **Comentarios por línea**. Podés mostrarlos mientras editás y copiar el código con una guía numerada para consultarla o llevarla a una IA. Las anotaciones son locales. El texto del editor y la atribución del original se conservan.
 
@@ -55,7 +57,9 @@ Probá seleccionar y ejecutar `pliegues = 9`. Podés usar las cuatro entradas `s
 
 ### Biblioteca e intercambio
 
-La línea **Destino** indica dónde se usará la próxima pieza. **Visuales** permite buscar sketches propios, preinstalados y del catálogo por nombre o autor. En **Semillas**, tocá **Aleatoria** junto al número para sortear otro con la simetría elegida. Después podés aplicarlo al destino o mezclarlo. **Loops** muestra la colección de videos. **Proyectos** guarda e importa composiciones y operadores.
+En **Visuales**, tocá **Editar** en la ficha o hacé clic derecho y elegí **Editar parámetros**. Podés ajustar los valores con deslizadores o introducir un número exacto. La miniatura permite probar cambios antes de aplicarlos. Los sketches que necesitan una cámara o una función GLSL propia se pueden ajustar y probar en su destino. **Guardar variante** crea una copia. Para retocar sólo una de varias instancias, elegila en la **Pila** y tocá **Editar parámetros**.
+
+La línea **Destino** indica dónde se usará la próxima pieza. **Visuales** permite buscar sketches propios, preinstalados y del catálogo por nombre o autor. En **Semillas** podés escribir enteros largos y decimales con signo, coma o punto. `-012,3750` y `-12.375` recuperan la misma visual con la misma simetría. **Aleatoria** sortea otro número. Después podés aplicarlo al destino o mezclarlo. **Loops** muestra la colección de videos. **Proyectos** guarda e importa composiciones y operadores.
 
 - **Mezclar** alterna un sketch en toda la visual o en el sector seleccionado. El control debajo de la pieza regula su intensidad. Cada mezcla tiene sus propios buffers Hydra, incluido el feedback. Los sectores leen las entradas s0 a s3. Los sketches que abren dispositivos o cargan recursos de manera asíncrona se ejecutan desde el código principal.
 - En **Visuales de la biblioteca** están el `flor_2` original, patches multibuffer, osciladores, geometrías escritas con GLSL y tratamientos para fuentes en vivo.
@@ -116,6 +120,8 @@ La calibración corrige la perspectiva de una superficie plana usando cuatro pun
 ### Sectores
 
 **Libre** sigue el recorrido del puntero. Seleccioná un sector en la lista o sobre la imagen. **Código** en la fila edita ese sector. **Biblioteca** e **Imagen** trabajan sobre el sector seleccionado. **Toda la visual** apunta a la imagen base. Los sectores de adelante aparecen arriba y el ojo alterna su visibilidad.
+
+**Código** abre el programa del elemento seleccionado. Con un sector o grupo activo podés recorrer sus capas, sketches de biblioteca y operadores desde el selector de arriba. **Fondo** abre el sketch global, incluso cuando lo quitaste para trabajar sólo con capas. Los cambios de código pertenecen a esa instancia y respetan **Edición en vivo** o **Enviar a salida**. Las fuentes, los pinceles y las formas nativas muestran su configuración en JSON. La flecha de descarga guarda el programa o la configuración que tenés delante. Desde un objeto de Mapeo, **Volver a Mapeo** te devuelve al lienzo.
 
 Arrastrá desde el interior de un sector para moverlo. **Deformar** edita sus puntos. **Estilo** permite activar un relleno y un borde por separado, elegir sus colores o escribirlos en hexadecimal y ajustar el grosor del borde.
 
