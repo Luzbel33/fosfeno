@@ -17,7 +17,15 @@ async function pixel(p,x,y,want) {
 async function main(){
   const browser=await chromium.launch({channel:'chromium',headless:!real,args})
   try {
-    const ctx=await browser.newContext({viewport:{width:1440,height:900},permissions:['camera']})
+    const ctx=await browser.newContext({
+      viewport:{width:1440,height:900},permissions:['camera'],serviceWorkers:'block'
+    })
+    let loadMapper
+    const mapperReady = new Promise(resolve => { loadMapper=resolve })
+    await ctx.route('**/src/mapping.js?*',async route => {
+      await mapperReady
+      await route.continue()
+    })
     await ctx.addInitScript(()=>{
       if (!navigator.mediaDevices?.getUserMedia) return
       const media=navigator.mediaDevices, native=media.getUserMedia.bind(media)
@@ -30,12 +38,15 @@ async function main(){
     ctx.on('page',page=>page.on('pageerror',e=>errors.push(e.message)))
     const p=await ctx.newPage()
     p.setDefaultTimeout(12000)
-    await p.goto(base+'abrir.html?v=2.21')
+    await p.goto(base+'abrir.html?v=2.21.1')
     await p.waitForFunction(()=>!!window.cm && hydraSynth?.canvas?.width>100)
     await p.evaluate(()=>cm.setValue('solid(1,0,0).out(o0)'))
     await p.getByText('Sketch ejecutado',{exact:true}).waitFor()
     await click(p,'openMapping')
     const f=p.frameLocator('#mappingFrame')
+    await id(f,'mapBoot').waitFor()
+    assert.equal(await id(f,'mapOutput').isVisible(),false)
+    loadMapper()
     await id(f,'mapCamera').waitFor()
     assert.equal(await id(p,'consoleDock').isVisible(),false)
     assert.equal(await p.evaluate(()=>hydraSynth.canvas.width>100&&hydraSynth.canvas.height>100),true)

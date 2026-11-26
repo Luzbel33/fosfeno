@@ -1043,6 +1043,8 @@ window.fosfenoMapping = { activate, deactivate, openProjection,
   preview: () => ({canvas:artwork.canvas, frame:scene.studioMode==='full' && !blackout && hydraVideo.readyState<2 ? 0 : previewRevision, blackout}) }
 window.addEventListener('pagehide', deactivate)
 window.addEventListener('pageshow', event => { if (event.persisted) activate() })
+$('mapBoot').hidden = true
+$('mapHeader').hidden = $('mapMain').hidden = false
 sizeCanvases()
 sync()
 updateSources()

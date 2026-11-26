@@ -1,13 +1,13 @@
 // Bump the asset version when publishing a new edition of the cabina.
 const prefix = 'fosfeno-' + new URL(self.registration.scope).pathname + '-'
-const cacheName = prefix + 'v2.21'
+const cacheName = prefix + 'v2.21.1'
 const files = [
   'index.html',
   'abrir.html',
   'mapeo.html',
   'style.css?v=2.21',
-  'mapping.css?v=2.21',
-  'src/mapping.js?v=2.21',
+  'mapping.css?v=2.21.1',
+  'src/mapping.js?v=2.21.1',
   'src/mapping-output.mjs',
   'src/mapping-project.mjs?v=2.21',
   'src/studio-storage.js',
@@ -16,7 +16,7 @@ const files = [
   'src/engine.js?v=2.16',
   'src/media.js?v=2.16',
   'src/visual-input.js?v=2.21',
-  'src/app.js?v=2.21',
+  'src/app.js?v=2.21.1',
   'src/score-tools.js?v=2.16',
   'src/sectors.js?v=2.19',
   'src/sector-program.js?v=2.16',

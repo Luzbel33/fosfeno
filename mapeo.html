@@ -7,7 +7,7 @@
     <title>Fosfeno · Mapeo</title>
     <link rel="icon" href="assets/mark.svg">
     <link rel="stylesheet" href="style.css?v=2.21">
-    <link rel="stylesheet" href="mapping.css?v=2.21">
+    <link rel="stylesheet" href="mapping.css?v=2.21.1">
     <script>
       if (window === window.parent) {
         const url = new URL('./', location.href)
@@ -17,7 +17,8 @@
     </script>
   </head>
   <body class="mapping">
-    <header class="map-header">
+    <p id="mapBoot" class="map-boot" role="status">Cargando Mapeo…</p>
+    <header class="map-header" id="mapHeader" hidden>
       <h1 class="sr-only">Superficie y pincel</h1>
       <div class="map-controls map-view-bar">
         <div class="map-controls map-view-choice" role="group" aria-label="Vista de edición">
@@ -31,7 +32,7 @@
         <button id="mapOutput" type="button" class="primary">Abrir proyector</button>
       </div>
     </header>
-    <main class="map-main">
+    <main class="map-main" id="mapMain" hidden>
       <section class="map-editor" aria-label="Mesa de mapeo">
         <div class="map-toolbar">
           <div class="map-controls" role="group" aria-label="Herramientas de la visual">
@@ -151,6 +152,6 @@
     <input id="mapProjectFile" type="file" accept=".fosmap,application/octet-stream" hidden>
     <script src="src/studio-storage.js"></script>
     <script src="src/visual-input.js?v=2.21"></script>
-    <script type="module" src="src/mapping.js?v=2.21" onerror="document.getElementById('mapStatus').textContent='No se pudo cargar Mapeo. Abrí Fosfeno por localhost o HTTPS y recargá.'"></script>
+    <script type="module" src="src/mapping.js?v=2.21.1" onerror="document.getElementById('mapBoot').textContent='No se pudo cargar Mapeo. Abrí Fosfeno por localhost o HTTPS y recargá.'"></script>
   </body>
 </html>

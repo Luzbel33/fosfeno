@@ -1,6 +1,7 @@
 .map-header, .map-output-actions, .map-title, .map-controls, .map-toolbar,
 .map-subbar, .map-calibration-actions, .map-statusbar { display:flex; align-items:center; }
 .mapping { min-height:100dvh; font-family:system-ui,sans-serif; }
+.map-boot { padding:12px 18px; color:var(--dim); }
 .map-header { justify-content:space-between; min-height:58px; gap:10px; padding:8px 18px;
   background:#151815; border-bottom:1px solid var(--line); flex-wrap:wrap; }
 .map-view-bar { gap:8px; }

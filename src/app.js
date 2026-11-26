@@ -1,6 +1,6 @@
 ;(() => {
   'use strict'
-  const edition = '2.21'
+  const edition = '2.21.1'
   const blankScore = '// Tu sketch Hydra'
   const $ = (id) => document.getElementById(id)
   const all = (sel, root = document) => Array.from(root.querySelectorAll(sel))
