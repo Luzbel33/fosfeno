@@ -111,7 +111,7 @@ class EditorMenu {
     dialog.setAttribute('aria-label',title.textContent)
     const entries=[['Menú de la selección','Mayús + F10'],['Duplicar',mod+' + D'],['Copiar / Pegar',mod+' + C / V'],
       ['Quitar','Supr'],['Deshacer',mod+' + Z'],['Rehacer',mod+' + Y / '+mod+' + Mayús + Z'],
-      ['Subir / Bajar en la pila','Alt + ↑ / ↓'],['Mover un píxel','Flechas'],['Mover diez píxeles','Mayús + flecha'],
+      ['Subir / bajar capa o efecto','Alt + ↑ / ↓'],['Mover un píxel','Flechas'],['Mover diez píxeles','Mayús + flecha'],
       ['Herramienta Mover','V']]
     if (this.trigger.id==='mapContext') entries.push(['Pincel','B'],['Línea','L'])
     for (const [label,key] of entries) {

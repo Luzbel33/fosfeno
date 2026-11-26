@@ -1,6 +1,6 @@
 ;(() => {
   'use strict'
-  const edition = '3.1.3'
+  const edition = '3.1.4'
   const blankScore = '// Tu sketch Hydra'
   const $ = (id) => document.getElementById(id)
   const all = (sel, root = document) => Array.from(root.querySelectorAll(sel))
@@ -2086,7 +2086,7 @@
       }
       if (!sectors.setSource(layer,'s0')) return false
     }
-    $('routeStatus').textContent = live ? 'Entrada en la pila.' : 'Entrada preparada. Aplicá para proyectarla.'
+    $('routeStatus').textContent = live ? 'Entrada en la composición.' : 'Entrada preparada. Aplicá para proyectarla.'
     return true
   }
   $('insertSource').onclick = () => routeInput(sectors.principal).catch(err=>visualStatus(err.message))

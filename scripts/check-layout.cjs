@@ -115,7 +115,7 @@ async function main() {
       const footer = await id('consoleDock').boundingBox()
       const top = await page.locator('.topbar').boundingBox()
       const wide = width>=1180 && height>=610
-      assert.ok(await id('backToLayers').isVisible(),'Pila is available in every layout')
+      assert.ok(await id('backToLayers').getByText('Capas',{exact:true}).isVisible(),'Capas is available in every layout')
       if (wide) {
         const mix = await id('layerDesk').boundingBox(), code = await id('editorPage').boundingBox()
         assert.ok(mix && !code && mix.x+mix.width<=original.x,'start with the stack and a large monitor')

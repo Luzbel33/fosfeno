@@ -56,7 +56,7 @@ class SectorHistory {
       const prepared = await this.desk.prepare(next.regions,true)
       if (this.current !== previous) {
         this.release(prepared)
-        return this.notify('La pila cambió mientras se cargaban los archivos. Volvé a intentar.')
+        return this.notify('Las capas cambiaron mientras se cargaban los archivos. Volvé a intentar.')
       }
       this.restoring = true
       this.desk.groupFor = null

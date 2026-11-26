@@ -120,11 +120,11 @@
           <p id="mapStatus" role="status"></p>
         </div>
       </section>
-      <aside class="map-inspector" aria-label="Pila de proyección y calibración">
+      <aside class="map-inspector" aria-label="Capas de proyección y calibración">
         <section class="map-section map-layer-section" aria-labelledby="mapStackHeading">
-          <div class="map-title"><h2 id="mapStackHeading">Pila de proyección</h2><button id="mapNewInk" type="button">+ Trazos</button></div>
-          <input id="mapStackSearch" type="search" autocomplete="off" aria-label="Buscar en la pila de proyección" placeholder="Buscar en pila…" hidden>
-          <p id="mapStackNoResults" role="status" hidden>Sin coincidencias en la pila.</p>
+          <div class="map-title"><h2 id="mapStackHeading">Capas de proyección</h2><button id="mapNewInk" type="button">+ Trazos</button></div>
+          <input id="mapStackSearch" type="search" autocomplete="off" aria-label="Buscar en las capas de proyección" placeholder="Buscar capas o efectos…" hidden>
+          <p id="mapStackNoResults" role="status" hidden>Sin coincidencias en las capas.</p>
           <h3 id="mapObjectsTitle">Objetos del mapa</h3>
           <div id="mapLayers" class="map-layers"></div>
           <div id="mapLayerControls" class="map-properties" hidden>
@@ -253,7 +253,7 @@
     <script src="vendor/omggif/omggif.js"></script>
     <script src="src/gif-input.js?v=3.1"></script>
     <script src="src/visual-input.js?v=3.1"></script>
-    <script src="src/editor-menu.js?v=3.1"></script>
+    <script src="src/editor-menu.js?v=3.1.4"></script>
     <script type="module" src="src/mapping.js?v=3.1.2" onerror="document.getElementById('mapBoot').textContent='No se pudo cargar Mapeo. Abrí Fosfeno por localhost o HTTPS y recargá.'"></script>
   </body>
 </html>
