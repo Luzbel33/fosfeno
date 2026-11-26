@@ -4,20 +4,22 @@ Editor de live coding y sintetizador de video con Hydra. El JavaScript del sketc
 
 Al entrar sin un enlace de sketch, Fosfeno genera una pieza con una semilla aleatoria. La semilla aparece en el nombre y en el código. Los borradores se conservan y los enlaces identificados recuperan su pieza. *MULTIVERSE*, de e_e (@eerie_ear), queda en la Biblioteca con el código y la atribución originales. [Abrir el mismo sketch en Hydra](https://hydra.ojack.xyz/?sketch_id=eerie_ear_0) · [Comparación en navegador y límites](docs/paridad-hydra.md)
 
-[Abrir el estudio](https://luzbel33.github.io/fosfeno/abrir.html?v=2.21.1) · [Abrir Glitch River de Flor de Fuego](https://luzbel33.github.io/fosfeno/abrir.html?v=2.21.1&sketch_id=flor_2) · [Ver el editor en movimiento](media/fosfeno-demo.mp4)
+[Abrir el estudio](https://luzbel33.github.io/fosfeno/abrir.html?v=2.22) · [Abrir Glitch River de Flor de Fuego](https://luzbel33.github.io/fosfeno/abrir.html?v=2.22&sketch_id=flor_2) · [Ver el editor en movimiento](media/fosfeno-demo.mp4)
 
 ## Tocar una visual
 
-En pantallas amplias, **Sectores** aparece en la barra cuando el panel izquierdo está cerrado. Usá la **×** del panel para cerrarlo. **Código**, **Biblioteca**, **Imagen** y **Audio** abren su herramienta a la derecha. En el teléfono en vertical, la herramienta se abre arriba del monitor. Usá **Cerrar panel** para recuperar la vista grande.
+**Composición** reúne el fondo, las mezclas de pantalla completa y los sectores con sus capas. **Fondo → Ocultar** permite probar la mezcla y después volver a mostrar el sketch. **Quitar** retira el fondo, con la opción **Deshacer**. Cada efecto de la pila tiene sus propios controles de visibilidad y eliminación.
 
-En **Sectores**, tocá **Nuevo sector**, elegí una forma y arrastrá sobre la visual. Las herramientas se abren debajo del sector que dibujaste. Tocá **Edición en vivo** para pasar a **Edición manual**. **Enviar a salida** aparece cuando hay cambios preparados. **Grabar loop** está junto a **Proyectar** en pantallas amplias y al inicio de los controles de edición en pantallas chicas. Arrastrá la división para repartir el espacio. Con teclado, enfocá la división y usá las flechas.
+En escritorio podés cerrar cualquiera de los paneles con su **×** y recuperar espacio para la visual. **Composición**, **Código**, **Biblioteca**, **Imagen** y **Audio** abren la herramienta correspondiente. En el teléfono, **Cerrar panel** devuelve el espacio al monitor.
+
+En **Composición**, tocá **+ Sector**, elegí una forma y arrastrá sobre la visual. Sus propiedades aparecen debajo de la pila. Tocá **Edición en vivo** para pasar a **Edición manual**. **Enviar a salida** aparece cuando hay cambios preparados. **Grabar loop** está junto a **Proyectar** en pantallas amplias y al inicio de los controles de edición en pantallas chicas. Arrastrá la división para repartir el espacio. Con teclado, enfocá la división y usá las flechas.
 
 **Ampliar** te deja mirar la composición en la misma ventana. **Volver a editar** o **Esc** recupera la pestaña y el tamaño que estabas usando. **Proyectar** abre una ventana aparte con la imagen limpia.
 
 1. En **Código**, cambiá un valor. **Edición en vivo** empieza encendida y recuerda tu elección. La salida se actualiza tras una pausa breve al escribir. Tocá un literal numérico para afinarlo con el deslizador.
 2. Elegí un sector o **Toda la visual** y tocá **+ Efecto** en su fila. Buscá un operador o mezclá una pieza de la Biblioteca. La cadena muestra qué está en salida, pausado o pendiente. Pausar conserva el ajuste. Las flechas cambian el orden y **×** quita el efecto.
 3. **Explorar** escribe un nuevo sketch. En **Biblioteca** podés elegir simetría, ingresar una semilla y volver a generar el mismo grafo. El generador combina interferencias, ecos entre fotogramas, inversión de coordenadas, tramas y campos de órbitas. Cada operación queda editable.
-4. Para armar una pieza desde cero, elegí **Biblioteca → En blanco**. Escribí `osc(14, 0.08, 1.4).kaleid(5).out(o0)`; en edición en vivo se proyecta al escribir.
+4. Para iniciar una sesión vacía, elegí **Composición → Nueva → Empezar en blanco**. La salida pasa a negro, incluso en modo manual. Los sketches, las composiciones y los loops guardados siguen en la biblioteca. Para cambiar sólo el fondo, usá **De fondo** junto al nombre de un sketch. **Mezclar** lo combina con lo que ya está en la selección. Las semillas ofrecen las mismas dos opciones.
 5. **Autopiloto** escribe y ejecuta una semilla nueva en cada intervalo. Tocar el código devuelve el control al operador. El intervalo se elige junto al interruptor.
 
 ### Leer, ajustar y ejecutar código
@@ -83,7 +85,7 @@ La calibración corrige la perspectiva de una superficie plana usando cuatro pun
 
 Arrastrá desde el interior de un sector para moverlo. **Deformar** edita sus puntos. **Estilo** permite activar un relleno y un borde por separado, elegir sus colores o escribirlos en hexadecimal y ajustar el grosor del borde.
 
-Con **+ Capa**, agregá una imagen, código o una cadena de efectos independiente dentro del mismo contorno. Desplegá el sector en la pila para ver cada fuente por nombre y los efectos de cada capa. El ojo alterna la visibilidad y el punto junto a un efecto lo pausa. Tocá un nombre para editar su origen o sus parámetros en la selección. Las flechas cambian el orden de la capa.
+Con **+ Capa**, agregá una imagen, código o una cadena de efectos independiente dentro del mismo contorno. Desplegá el sector en la pila para ver cada fuente por nombre y los efectos de cada capa. El ojo permite ocultar o mostrar una capa o su efecto. Tocá un nombre para editar su origen o sus parámetros en la selección. Las flechas cambian el orden de la capa.
 
 Con **Agrupar**, marcá dos o más capas del mismo sector y elegí **Crear grupo**. Seleccioná el grupo para aplicar una cadena al resultado combinado de sus capas. **Desagrupar capas** conserva sus miembros. El lienzo y la pila admiten **Ctrl+C** y **Ctrl+V** para copiar y pegar dentro de la sesión, **Ctrl+Z** para deshacer y **Ctrl+Mayús+Z** o **Ctrl+Y** para rehacer. En macOS usá ⌘.
 

@@ -41,6 +41,26 @@ class Video extends EventTarget {
   removeAttribute() {}
 }
 
+test('starting a new composition pauses tracks and releases a late microphone permission', async () => {
+  let grant
+  const mediaDevices = {getUserMedia: () => new Promise(resolve => { grant = resolve })}
+  const SoundDesk = load('media', 'SoundDesk', { navigator: {mediaDevices} })
+  const desk = new SoundDesk(() => {}, () => {})
+  desk.start = async () => {}
+  const song = {audio: {paused:false, pause() { this.paused = true }}}
+  desk.tracks.set('song', song)
+  const opening = desk.mic()
+  await new Promise(setImmediate)
+  desk.stopSession()
+  const track = {stopped:false, stop() { this.stopped = true }}
+  grant({getTracks: () => [track]})
+  assert.equal(await opening, null)
+  assert.equal(track.stopped, true)
+  assert.equal(desk.micStream, null)
+  assert.equal(desk.tracks.get('song'), song)
+  assert.equal(song.audio.paused, true)
+})
+
 test('playback must deliver a decoded frame before committing a camera', async () => {
   const playFirstFrame = load('visual-input', 'playFirstFrame', {
     AbortController,

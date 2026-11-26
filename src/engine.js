@@ -158,6 +158,20 @@ class VisualEngine {
   get output() {
     return this.hydra.isRenderingAll ? 'all' : String(this.hydra.o.indexOf(this.hydra.output))
   }
+  clearScore() {
+    // Keep media devices, independent sector programs and the capture canvas alive.
+    for (const output of this.hydra.o) {
+      this.h.solid(0, 0, 0, 1).out(output)
+      for (const framebuffer of output.fbos) this.r.clear({framebuffer, color:[0,0,0,1]})
+    }
+    window.speed = 1
+    window.bpm = this.state.bpm
+    window.fps = undefined
+    window.update = window.afterUpdate = () => {}
+    this.bindings = Object.create(null)
+    this.scoreOutputs.clear()
+    this.lastProgram = []
+  }
   async run(code, { fresh = false, whole = true, syncOutputs = false } = {}) {
     if (this.running) throw new Error('Esperá a que termine la ejecución actual.')
     this.running = true

@@ -135,12 +135,17 @@ class SectorHistory {
   }
 
   async pasteSector(source) {
+    const version = this.desk.documentVersion
     const [x, y, width, height] = regionBounds(source.points)
     const offset = (start, size) => Math.max(-start, Math.min(1 - size - start, start + size > .97 ? -.03 : .03))
     const dx = offset(x, width), dy = offset(y, height)
     const points = source.points.map(([left, top]) =>
       [Math.max(0, Math.min(1, left + dx)), Math.max(0, Math.min(1, top + dy))])
     const [region] = await this.desk.prepare([{ ...source, points }])
+    if (version !== this.desk.documentVersion) {
+      this.release([region])
+      return
+    }
     region.id = this.desk.nextId++
     this.desk.regions.push(region)
     this.desk.id = region.id

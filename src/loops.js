@@ -1,6 +1,6 @@
 class LoopLibrary {
-  constructor({store,source,use,notify,openLibrary,destination}) {
-    Object.assign(this,{store,source,use,notify,openLibrary,destination})
+  constructor({store,source,use,notify,openLibrary,destination,documentVersion}) {
+    Object.assign(this,{store,source,use,notify,openLibrary,destination,documentVersion})
     const $ = id=>document.getElementById(id)
     this.button=$('loopButton')
     this.root=$('loopList')
@@ -56,8 +56,12 @@ class LoopLibrary {
         }
         play.onclick=async()=>{
           const target=this.destination()
+          const version=this.documentVersion()
           play.disabled=true
-          try { await this.use(await get(),target) } catch (e) { this.notify(e.message) }
+          try {
+            const file=await get()
+            if (version===this.documentVersion()) await this.use(file,target)
+          } catch (e) { this.notify(e.message) }
           finally { play.disabled=false }
         }
         download.onclick=async()=>{

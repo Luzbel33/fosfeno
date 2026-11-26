@@ -4,16 +4,16 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
     <meta name="theme-color" content="#101211" />
-    <title>Fosfeno 2.21.1 — Hydra en vivo</title>
+    <title>Fosfeno 2.22 — Hydra en vivo</title>
     <link rel="icon" href="assets/mark.svg" />
     <link rel="stylesheet" href="vendor/codemirror/lib/codemirror.css" />
-    <link rel="stylesheet" href="style.css?v=2.21" />
+    <link rel="stylesheet" href="style.css?v=2.22" />
   </head>
   <body>
     <header class="topbar">
       <div class="brand"><img src="assets/mark.svg" alt="" /><span>FOSFENO</span></div>
       <nav id="studioNav" aria-label="Herramientas de edición">
-        <button data-view="sectors" id="backToLayers" aria-controls="layerDesk"><i data-icon="layers"></i><span>Sectores</span></button>
+        <button data-view="sectors" id="backToLayers" aria-controls="layerDesk"><i data-icon="layers"></i><span>Composición</span></button>
         <button data-view="code" aria-controls="editorPage"><i data-icon="code"></i><span>Código</span></button>
         <button data-view="library" aria-controls="libraryPage"><i data-icon="grid"></i><span>Biblioteca</span></button>
         <button data-view="signal" aria-controls="panel"><i data-icon="camera"></i><span>Imagen</span></button>
@@ -119,12 +119,13 @@
           </div>
         </section>
         <section data-viewpane="library" class="panel-scroll" id="libraryPage" hidden>
-          <div class="section-line">
-            <h2>Biblioteca <button class="help-key" data-help="biblioteca" aria-label="Ayuda sobre la biblioteca">?</button></h2>
-            <button id="blank" class="line-button"><i data-icon="plus"></i>En blanco</button>
+          <div class="library-heading">
+            <div class="section-line">
+              <h2>Biblioteca <button class="help-key" data-help="biblioteca" aria-label="Ayuda sobre la biblioteca">?</button></h2>
+            </div>
+            <p id="sectorTarget" class="hint">Destino · Toda la visual</p>
           </div>
-          <p data-guide="biblioteca" hidden>Elegí el destino en Sectores. Mezclar enciende una capa en ese destino. Tocá el mismo botón para apagarla. Cada sketch mezclado dispone de sus propias salidas Hydra.</p>
-          <p id="sectorTarget" class="hint">Destino · Toda la visual</p>
+          <p data-guide="biblioteca" hidden>Usar de fondo reemplaza el sketch principal. Con un sector seleccionado, Usar en capa reemplaza los sketches de biblioteca de esa capa. Mezclar suma el sketch al destino indicado. Tocá En mezcla para pausarlo o ajustá su porcentaje. En Composición podés quitar el fondo o una mezcla individual.</p>
           <details class="portable" id="loopLibrary"><summary>Mis loops de video</summary>
             <div class="segments"><button id="importLoop">Importar video</button><button class="help-key" data-help="loops" aria-label="Cómo grabar y reutilizar loops">?</button></div>
             <input id="loopFile" type="file" accept="video/*" hidden><div id="loopList"></div>
@@ -143,11 +144,12 @@
                   autocomplete="off"
                   inputmode="numeric"
                   placeholder="Aleatoria" /></label
-              ><button id="grow" class="primary"><i data-icon="shuffle"></i>Generar</button>
+              ><button id="grow">Usar de fondo</button><button id="mixSeed" class="outline">Mezclar</button>
             </div>
           </div>
           <div class="section-line">
             <h3>Mis sketches</h3>
+            <button id="blank" class="line-button">Nuevo borrador</button>
             <button id="importCode" class="line-button">Importar .js</button>
           </div>
           <input hidden id="jsFile" type="file" accept=".js,.txt,text/javascript,text/plain" />
@@ -178,10 +180,23 @@
         </section>
         <section data-viewpane="sectors" class="panel-scroll layer-inspector" id="layerDesk" aria-labelledby="sectorsHeading" hidden>
           <div class="sector-header">
-            <h2 id="sectorsHeading">Sectores</h2>
-            <button id="newSector" class="outline" aria-label="Nuevo sector" aria-controls="sectorShapes" aria-expanded="false"><i data-icon="plus"></i><span class="new-sector-label">Nuevo sector</span><span class="new-sector-short">Nuevo</span></button>
+            <h2 id="sectorsHeading">Composición</h2>
+            <button id="newComposition" class="outline" aria-label="Nueva composición" title="Nueva composición"><i data-icon="plus"></i>Nueva</button>
             <button class="help-key" aria-label="Ayuda de sectores y efectos" data-help="efectos">?</button>
-            <button id="closeSectors" aria-label="Cerrar panel de Sectores" title="Cerrar panel de Sectores"><i data-icon="close"></i></button>
+            <button id="closeSectors" aria-label="Cerrar panel de composición" title="Cerrar panel de composición"><i data-icon="close"></i></button>
+          </div>
+          <section id="baseCard" class="composition-base" aria-labelledby="baseHeading">
+            <div class="base-heading"><h3 id="baseHeading">Fondo</h3><span id="baseStatus"></span></div>
+            <strong id="baseTitle"></strong>
+            <div class="base-actions">
+              <button id="baseVisibility" type="button" aria-pressed="true"><i data-icon="eye"></i><span>Ocultar</span></button>
+              <button id="removeBase" type="button" aria-label="Quitar fondo"><i data-icon="trash"></i>Quitar</button>
+              <button id="baseLibrary" type="button" hidden><i data-icon="grid"></i>Elegir fondo</button>
+            </div>
+          </section>
+          <div class="composition-stack-heading">
+            <h3>Capas y sectores</h3>
+            <button id="newSector" class="outline" aria-label="Nuevo sector" aria-controls="sectorShapes" aria-expanded="false"><i data-icon="plus"></i>Sector</button>
           </div>
           <div id="sectorShapes" class="shape-picker layer-palette" hidden></div>
           <p id="sectorStatus" class="hint" role="status"></p>
@@ -268,6 +283,7 @@
           <details id="sectorStorage" class="portable"><summary>Sectores guardados</summary>
             <div class="segments"><button id="saveSectors">Guardar sectores</button><button id="loadSectors">Recuperar guardados</button></div>
           </details>
+          <p data-guide="efectos" hidden>Fondo muestra el sketch de toda la pantalla. Ocultar permite volver a mostrarlo y Quitar lo retira. Nueva composición permite empezar en negro. Elegí Toda la visual para mezclar en pantalla completa o un sector para trabajar dentro de su contorno.</p>
           <p data-guide="efectos" hidden>Arrastrá desde adentro de un sector para moverlo. Deformar permite mover los puntos del contorno. En Estilo podés colorear el relleno o el borde. Elegí una capa del sector para ajustar sus efectos, imagen, código u opacidad.</p>
           <p data-guide="efectos" hidden>El interruptor pausa un efecto y conserva su ajuste. Las flechas cambian el orden y × lo quita.</p>
           <p data-guide="efectos" hidden>En la pila podés abrir la fuente o un efecto de cualquier capa. Agrupar combina las capas marcadas antes de aplicar los efectos del grupo. En el lienzo y en Sectores usá Ctrl+C y Ctrl+V para copiar la selección, Ctrl+Z para deshacer y Ctrl+Mayús+Z para rehacer.</p>
@@ -400,7 +416,8 @@
         </section>
       </aside>
       <aside id="inspectorDesk" aria-label="Herramienta activa" hidden>
-        <h2 id="codeHeading" class="dock-title">Código Hydra</h2>
+        <div id="codeHeading" class="dock-title"><h2>Código Hydra</h2></div>
+        <button id="closeInspector" type="button" aria-label="Cerrar herramienta" title="Cerrar herramienta"><i data-icon="close"></i></button>
       </aside>
       <div class="toast" id="toast" role="status"></div>
     </main>
@@ -428,6 +445,11 @@
         <button id="applySectors" class="primary" aria-label="Enviar a salida" title="Mostrar los cambios preparados" hidden><span class="send-label">Enviar a salida</span><span class="send-compact">Enviar</span></button>
       </div>
     </footer>
+    <dialog id="newCompositionDialog" aria-labelledby="newCompositionTitle" aria-describedby="newCompositionDescription">
+      <h2 id="newCompositionTitle">¿Empezar en blanco?</h2>
+      <p id="newCompositionDescription">Se vaciará la salida del estudio y se detendrán las entradas activas. Tus sketches, composiciones y loops guardados seguirán en la biblioteca.</p>
+      <div class="dialog-actions"><button id="cancelNewComposition" autofocus>Cancelar</button><button id="confirmNewComposition" class="primary">Empezar en blanco</button></div>
+    </dialog>
     <dialog id="helpDialog" aria-labelledby="helpTitle">
       <div class="section-line"><h2 id="helpTitle"></h2><button id="closeHelp" aria-label="Cerrar ayuda">Cerrar ×</button></div>
       <div id="helpContent"></div>
@@ -449,18 +471,18 @@
     <script src="vendor/hydra-gallery/examples.js"></script>
     <script src="src/score-tools.js?v=2.16"></script>
     <script src="src/sketches.js?v=2.19"></script>
-    <script src="src/engine.js?v=2.16"></script>
-    <script src="src/media.js?v=2.16"></script>
+    <script src="src/engine.js?v=2.22"></script>
+    <script src="src/media.js?v=2.22"></script>
     <script src="src/visual-input.js?v=2.21"></script>
     <script src="src/studio-storage.js"></script>
-    <script src="src/sectors.js?v=2.19"></script>
+    <script src="src/sectors.js?v=2.22"></script>
     <script src="src/sector-program.js?v=2.16"></script>
-    <script src="src/sector-history.js"></script>
-    <script src="src/loops.js?v=2.17"></script>
-    <script src="src/layout.js?v=2.17"></script>
-    <script src="src/compositions.js?v=2.19"></script>
+    <script src="src/sector-history.js?v=2.22"></script>
+    <script src="src/loops.js?v=2.22"></script>
+    <script src="src/layout.js?v=2.22"></script>
+    <script src="src/compositions.js?v=2.22"></script>
     <script src="src/code-guide.js?v=2.16"></script>
     <script src="src/operator-editor.js?v=2.16"></script>
-    <script src="src/app.js?v=2.21.1"></script>
+    <script src="src/app.js?v=2.22"></script>
   </body>
 </html>

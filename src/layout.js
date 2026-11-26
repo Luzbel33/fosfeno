@@ -15,6 +15,11 @@ class StudioLayout {
     this.preview = document.getElementById('previewArea')
     this.inspector = document.getElementById('inspectorDesk')
     this.codeHeading = document.getElementById('codeHeading')
+    this.closeInspector = document.getElementById('closeInspector')
+    this.closeInspector.onclick = () => {
+      this.setInspectorVisible(false)
+      this.activeTool?.focus({preventScroll:true})
+    }
     this.divider = document.getElementById('splitter')
     this.focusButton = document.getElementById('focusPreview')
     // The divider owns this gesture. A native fling can otherwise consume the next tap.
@@ -90,6 +95,16 @@ class StudioLayout {
     }
     this.inspector.hidden = !wide
     this.codeHeading.hidden = active !== 'code'
+    if (wide) {
+      const header = active === 'library' ? document.querySelector('.library-heading .section-line') :
+        active === 'signal' ? document.querySelector('#panel > .tabs') : this.codeHeading
+      if (this.closeInspector.parentElement !== header) header.append(this.closeInspector)
+    }
+  }
+  setInspectorVisible(show) {
+    document.body.classList.toggle('tool-collapsed',!show)
+    this.open(this.opened)
+    if (show) this.editor.refresh()
   }
   arrangeChrome() {
     const $ = id => document.getElementById(id)
@@ -138,9 +153,16 @@ class StudioLayout {
   open(on) {
     const showDrawer = this.compact.matches && on
     document.body.classList.toggle('tools-open',showDrawer)
-    document.getElementById('closeTools').hidden = !showDrawer
+    const close = document.getElementById('closeTools')
+    close.hidden = !showDrawer
+    close.setAttribute('aria-label','Cerrar panel')
+    const header = document.querySelector('#layerDesk .sector-header')
+    if (showDrawer && !document.getElementById('layerDesk').hidden) {
+      if (close.parentElement!==header) header.append(close)
+    } else if (close.parentElement!==this.studio) this.studio.prepend(close)
     for (const button of document.querySelectorAll('#studioNav button')) {
-      const active = button === this.activeTool && (!this.compact.matches || showDrawer)
+      const active = button === this.activeTool && (!this.compact.matches || showDrawer) &&
+        !(this.wide.matches && document.body.classList.contains('tool-collapsed'))
       if (active) button.setAttribute('aria-current','true')
       else button.removeAttribute('aria-current')
       if (this.compact.matches) {

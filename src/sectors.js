@@ -105,10 +105,15 @@ class SectorRenderer {
       uniforms:{resolution:r.prop('resolution'),combined:r.prop('combined')},
       framebuffer:r.prop('target'), depth:{enable:false}
     })
+    const presentTexture = hydra.renderFbo
     for (const key of ['renderFbo','renderAll']) {
       const present = hydra[key]
       hydra[key] = (...args) => {
-        present(...args)
+        if (engine.state.baseVisible !== false) present(...args)
+        else if (engine.state.mixStandaloneInput && this.input()) {
+          // A panel-routed input is still a source when the generative background is gone.
+          presentTexture({tex0:engine.h.s0.getTexture(),resolution:[engine.canvas.width,engine.canvas.height]})
+        } else r.clear({color:[0,0,0,1]})
         if (this.passes.length) this.frame()
       }
     }
@@ -352,6 +357,7 @@ class SectorDesk {
     this.groupSelection = new Set()
     this.principal = this.makePrincipal()
     this.regions = []
+    this.documentVersion = 0
     this.applied = []
     this.files = new Set()
     this.nextId = 1
@@ -1163,9 +1169,13 @@ class SectorDesk {
     this.note('Sectores y archivos guardados en este navegador.')
   }
   async restore() {
+    const version = this.documentVersion
     const data = await this.store('readonly',s => s.get('actual'))
+    if (version !== this.documentVersion) return
     if (!data) { this.note('Todavía no guardaste sectores.'); return }
-    this.install(await this.prepare(data),undefined,true)
+    const prepared = await this.prepare(data)
+    if (version === this.documentVersion) this.install(prepared,undefined,true)
+    else for (const layer of prepared.flatMap(sectorLayers)) layer.file?.clear()
   }
   async prepare(data) {
     const next = [], opened = []

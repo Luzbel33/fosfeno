@@ -1,6 +1,6 @@
 ;(() => {
   'use strict'
-  const edition = '2.21.1'
+  const edition = '2.22'
   const blankScore = '// Tu sketch Hydra'
   const $ = (id) => document.getElementById(id)
   const all = (sel, root = document) => Array.from(root.querySelectorAll(sel))
@@ -57,6 +57,7 @@
     quality: 'auto',
     bands: [0, 0, 0]
   }
+  const initialSettings = { ...state, autoMix: true, output: '0', fold: 'libre', seed: '' }
   const canvas = $('visual'),
     stage = $('stage'),
     brush = new BrushSurface()
@@ -181,6 +182,7 @@
   let revision = 0,
     queue = Promise.resolve(),
     pendingFresh = false
+  let baseMode = 'visible', outputBaseMode = 'empty', outputBaseName = ''
   updateLiveEdit()
   let applying = false
   let scopeId = null, scopeLayer = null
@@ -192,11 +194,8 @@
     onUpdate: region => {
       if (layout.wide.matches || view === 'sectors' || (scopeId && !region)) setLayerScope(region)
       if (engine) {
-        refreshLayerOverview()
-        refreshApply()
-        if (view === 'library') {
-          for (const row of $('libraryPage').querySelectorAll('.library-row')) libraryRows.get(row)?.()
-        }
+        refreshMix()
+        refreshLibraryIndicators()
       }
     }
   })
@@ -297,7 +296,105 @@
   $('chooseOutput').onclick = () => outputPicker($('outputChoices').hidden)
   function codePending() {
     const code=cm.getValue()
-    return hasSketch(code) && code!==appliedText
+    return baseMode !== outputBaseMode || (hasSketch(code) && code!==appliedText)
+  }
+  function getStudioBase() {
+    return {name:baseMode==='empty' ? '' : $('scoreName').value.trim() || 'Sin título',
+      present:baseMode!=='empty',visible:baseMode==='visible',pending:codePending(),
+      outputMode:outputBaseMode,outputName:outputBaseName}
+  }
+  function setOutputBase(mode, name = outputBaseName) {
+    outputBaseMode = mode
+    outputBaseName = mode === 'empty' ? '' : name
+    state.baseVisible = mode === 'visible'
+    refreshMix()
+  }
+  function markBaseEntry() {
+    if (location.protocol === 'file:') return
+    if (outputBaseMode==='visible' && !history.state?.fosfenoBase) return
+    const url = new URL(location.href), entry = {...history.state}
+    if (outputBaseMode === 'visible') delete entry.fosfenoBase
+    else entry.fosfenoBase = outputBaseMode
+    if (outputBaseMode === 'hidden') entry.fosfenoHiddenScore = draft()
+    else delete entry.fosfenoHiddenScore
+    if (outputBaseMode === 'empty') {
+      url.searchParams.delete('sketch_id')
+      url.searchParams.delete('code')
+    }
+    try { history.replaceState(entry,'',url) } catch {}
+  }
+  function prepareEmptyBase() {
+    revision++
+    clearTimeout(timer)
+    toggleAuto(false)
+    baseMode = 'empty'
+    current = {id:'nuevo',name:'Sin título',code:''}
+    setText('')
+    $('scoreName').value = current.name
+    sourceMix = null
+    pendingFresh = true
+    modified = false
+    armed = true
+    store('draft',null)
+    refreshMix()
+    refreshLibraryIndicators()
+  }
+  function applyEmptyBase() {
+    // Mute the old score even while its asynchronous JS is finishing.
+    appliedText = ''
+    syncEdits = false
+    pendingFresh = true
+    setOutputBase('empty')
+    markBaseEntry()
+    status('Sin fondo.')
+    const previous = engine
+    if (!previous) return Promise.resolve(false)
+    if (!previous.running) {
+      previous.clearScore()
+      return Promise.resolve(true)
+    }
+    queue = queue.then(() => {
+      if (engine === previous) previous.clearScore()
+      return true
+    })
+    return queue
+  }
+  function clearStudioBase() {
+    prepareEmptyBase()
+    $('seed').value = ''
+    return applyEmptyBase()
+  }
+  function removeStudioBase() {
+    if (baseMode === 'empty') return
+    const previous = {...current,name:$('scoreName').value,code:cm.getValue(),baseMode}
+    const play = armed
+    prepareEmptyBase()
+    if (live) applyEmptyBase()
+    else status('Fondo quitado en la edición. Aplicá para actualizar la salida.')
+    const cleared = revision
+    notify(live ? 'Fondo quitado.' : 'Fondo listo para quitar.',{label:'Deshacer',run:()=>{
+      if (revision !== cleared || baseMode !== 'empty') return notify('La edición ya cambió.')
+      load(previous,live && play,false)
+      if (!live) { armed=play; refreshMix() }
+    }})
+  }
+  function toggleStudioBase() {
+    if (baseMode === 'empty') return
+    baseMode = baseMode === 'hidden' ? 'visible' : 'hidden'
+    if (baseMode==='hidden') toggleAuto(false)
+    if (live && baseMode==='visible' && (pendingFresh || !engine?.lastProgram.length)) execute(cm.getValue(),{fresh:true})
+    else if (live && outputBaseMode !== 'empty') {
+      setOutputBase(baseMode)
+      markBaseEntry()
+    } else if (live && armed) execute(cm.getValue())
+    refreshMix()
+  }
+  async function applyStudioEdits() {
+    if (baseMode === 'empty') return outputBaseMode === 'empty' || applyEmptyBase()
+    if (appliedText !== cm.getValue() || outputBaseMode === 'empty') return execute(cm.getValue())
+    setOutputBase(baseMode)
+    markBaseEntry()
+    return true
   }
   function updateLiveEdit() {
     const button=$('liveEdit')
@@ -316,6 +413,13 @@
     refreshApply()
     refreshLayerOverview()
   }
+  function refreshLibraryIndicators() {
+    if (view === 'library') {
+      const baseCode = baseMode==='empty' ? '' : cm.getValue()
+      for (const row of $('libraryPage').querySelectorAll('.library-row')) libraryRows.get(row)?.(baseCode)
+      refreshSeedMix()
+    }
+  }
   const layerTreeOpen = new Map()
   let layerDrag
   function selectSectorLayer(id, layerId, action, effectIndex) {
@@ -327,7 +431,7 @@
     sectors.cancelDrag()
     sectors.panel(null)
     if (!layout.layersVisible) showLayers(true)
-    changeView('sectors')
+    if (!layout.wide.matches) changeView('sectors')
     sectors.refresh()
     if (action === 'source') {
       if (id) {
@@ -372,6 +476,7 @@
       selected: layer===sectors.target(), mark:sectors.groupSelection.has(layer)}
   }
   function refreshLayerOverview() {
+    refreshBaseCard()
     const root=$('layerOverview')
     const detail=$('sectorDetail')
     const layers=[sectors.principal,...[...sectors.regions].reverse()]
@@ -380,7 +485,7 @@
       const entries = sectorLayers(layer).map(item=>describeLayer(item,applied,layer))
       const count=entries.flatMap(entry=>entry.effects).filter(effect=>effect.playing).length
       const status=layer.id && !applied ? 'Pendiente' : applied?.visible===false ? 'Oculto' :
-        count ? count+(count===1?' efecto':' efectos') : ''
+        count ? count+(count===1?' efecto':' efectos') : layer.id ? '' : 'Sin efectos activos'
       const hasTree = !!layer.id || entries.some(item=>item.source || item.effects.length || item.paint)
       const open = sectors.groupFor===layer.id || (layerTreeOpen.get(layer.id) ??
         (entries.length>1 || entries.some(item=>item.source && item.source!=='Sketch' || item.effects.length)))
@@ -431,6 +536,37 @@
       cursor = next
     }
     detail.hidden = false
+  }
+  function refreshBaseCard() {
+    const base = getStudioBase()
+    const mode = base.present ? (base.visible ? 'visible' : 'hidden') : 'empty'
+    const card = $('baseCard')
+    const status = base.pending ? (base.outputMode === 'visible' ? 'En salida · '+base.outputName :
+      base.outputMode === 'hidden' ? 'En salida · fondo oculto' : 'En salida · sin fondo') :
+      base.present ? (base.visible ? 'En salida' : 'Oculto') : ''
+    if (card.dataset.mode !== mode) {
+      card.dataset.mode = mode
+      $('baseVisibility').hidden = !base.present
+      $('baseVisibility').setAttribute('aria-pressed', String(base.visible))
+      $('baseVisibility').setAttribute('aria-label',base.visible ? 'Ocultar fondo' : 'Mostrar fondo')
+      $('baseVisibility').innerHTML = icon(base.visible ? 'eye' : 'eyeOff') + (base.visible ? 'Ocultar' : 'Mostrar')
+      $('removeBase').hidden = !base.present
+      $('baseLibrary').hidden = base.present
+    }
+    const name = base.present ? base.name : 'Sin fondo'
+    if ($('baseTitle').textContent !== name) $('baseTitle').textContent = name
+    if ($('baseStatus').textContent !== status) $('baseStatus').textContent = status
+    if (card.dataset.pending !== String(base.pending)) card.dataset.pending = String(base.pending)
+  }
+  $('baseVisibility').onclick = toggleStudioBase
+  $('removeBase').onclick = () => {
+    removeStudioBase()
+    if ($('removeBase').hidden) $('baseLibrary').focus({preventScroll:true})
+  }
+  $('baseLibrary').onclick = () => {
+    selectSectorLayer(0)
+    changeView('library')
+    $('grow').focus({preventScroll:true})
   }
   function makeSectorRow(id) {
     const line=document.createElement('div'), select=document.createElement('button')
@@ -525,7 +661,7 @@
           layerDrag=null
         }
       }
-      head.append(choose)
+      if (row.id) head.append(choose)
       if (row.grouping && !entry.groupId && !group) {
         const mark=button(entry,'mark',entry.mark?'✓':'□',()=>sectors.toggleGroupMember(getLayer(layerId)),'Marcar '+name)
         mark.setAttribute('aria-pressed',String(entry.mark))
@@ -546,7 +682,7 @@
         sourceButton.title=label
         signals.append(sourceButton)
       }
-      if (code || !row.id) signals.append(button(entry,'source','Código Hydra',()=>selectSectorLayer(row.id,layerId,'code')))
+      if (code) signals.append(button(entry,'source','Código Hydra',()=>selectSectorLayer(row.id,layerId,'code')))
       if (paint) signals.append(button(entry,'source','Pinceladas',()=>selectSectorLayer(row.id,layerId,'source')))
       for (const [i,effect] of effects.entries()) {
         const line=document.createElement('div')
@@ -564,17 +700,24 @@
           line.append(state)
         }
         if (effect.enabled!==undefined) {
-          const power=button(entry,'power',effect.enabled?'●':'○',()=>{
+          const power=button(entry,'power','',()=>{
             const fx=getLayer(layerId)?.fx[i]
             if (fx) { fx.enabled=fx.enabled===false; sectors.changed() }
           },(effect.enabled?'Pausar ':'Activar ')+effect.name+' en '+name+' · '+effect.state)
+          power.innerHTML=icon(effect.enabled ? 'eye' : 'eyeOff')
           power.dataset.treeAction=layerId+'-power-'+i
           power.setAttribute('aria-pressed',String(effect.enabled))
           line.append(power)
+          const remove=button(entry,'remove','',()=>{
+            const target=getLayer(layerId)
+            if (target?.fx[i]) { target.fx.splice(i,1); sectors.changed() }
+          },'Quitar '+effect.name+' de '+(row.id ? name : 'la mezcla'))
+          remove.innerHTML=icon('trash')
+          line.append(remove)
         }
         signals.append(line)
       }
-      item.append(head)
+      if (head.childElementCount) item.append(head)
       if (signals.children.length) item.append(signals)
       if (group) {
         const children = document.createElement('div')
@@ -589,6 +732,7 @@
   }
   function changeView(next, openTools = true) {
     view=next
+    if (next!=='sectors' && layout.wide.matches) layout.setInspectorVisible(true)
     layout.showPanes(next)
     if (!layout.wide.matches && next!=='sectors') sectors.panel(null)
     sectors.show(layout.wide.matches ? layout.layersVisible : next==='sectors')
@@ -642,6 +786,7 @@
       $('newSector').focus({preventScroll:true})
       return
     }
+    if (layout.wide.matches) layout.setInspectorVisible(true)
     if (layout.activeView(view)===next && (!tab || signalTab===tab)) layout.open(true)
     else if (tab) openPanel(tab)
     else changeView(next)
@@ -715,6 +860,7 @@
       name: $('scoreName').value.trim() || 'Sin título',
       code: cm.getValue(),
       generator:current.generator,
+      baseMode,
       autoEdit: armed,
       modified
     }
@@ -739,7 +885,12 @@
   function restoreEditor(reference, play, fallback) {
     const recovered = stored('draft', null)
     const sameEntry = recovered?.historyEntry && recovered.historyEntry === history.state?.fosfenoEntry
-    if (hasSketch(recovered?.code) && (!reference || sameEntry)) {
+    if (!reference && history.state?.fosfenoBase === 'empty' && !(sameEntry && hasSketch(recovered?.code))) {
+      prepareEmptyBase()
+    } else if (history.state?.fosfenoBase==='hidden' && hasSketch(history.state.fosfenoHiddenScore?.code) && !sameEntry) {
+      load(history.state.fosfenoHiddenScore,false,false)
+      armed=true
+    } else if (hasSketch(recovered?.code) && (!reference || sameEntry)) {
       load(recovered, false, false)
       modified = true
       armed = recovered.autoEdit === true
@@ -755,10 +906,11 @@
     }
     changeView('sectors', false)
   }
-  function load(item, play = true, manual = true) {
+  function load(item, play = true, manual = true, {openCode = true, armOnLive = play} = {}) {
     if (!item) return
     if (modified && archive() === false) return
     current = item
+    baseMode = hasSketch(item.code) ? (item.baseMode === 'hidden' ? 'hidden' : 'visible') : 'empty'
     if (item.generator) {
       fold = item.generator.fold
       $('seed').value = item.generator.seed
@@ -767,14 +919,15 @@
     revision++
     clearTimeout(timer)
     modified = false
-    armed = play
+    armed = armOnLive
     pendingFresh = !play
     if (manual) {
       toggleAuto(false)
-      changeView('code')
+      if (openCode) changeView('code')
     }
     setText(item.code)
     $('scoreName').value = item.name
+    refreshLibraryIndicators()
     if (manual) store('draft', null)
     if (play && panelInputMix && inputs[0].current) {
       loading = true
@@ -782,11 +935,16 @@
       }
     if (play) execute(cm.getValue(), { fresh: true })
     else status('Preparado. Ejecutá para llevar este código a la salida.')
+    if (engine) refreshMix()
     return true
   }
   function execute(code, { fresh = false, whole = true, remember = false } = {}) {
     const requested = revision
     clearTimeout(timer)
+    if (engine && whole && !hasSketch(code)) {
+      baseMode='empty'
+      return applyEmptyBase()
+    }
     if (!engine || !hasSketch(code)) {
       status('Escribí una cadena y terminala con .out().')
       return
@@ -802,7 +960,10 @@
             syncEdits = false
             if (remember) sectors.apply()
           } else appliedText = null
+          if (baseMode === 'empty') baseMode = 'visible'
+          setOutputBase(baseMode, $('scoreName').value.trim() || 'Sin título')
           pendingFresh = false
+          markBaseEntry()
           status(whole ? 'Sketch ejecutado' : 'Bloque ejecutado')
           if (remember && location.protocol !== 'file:') {
             try {
@@ -812,6 +973,7 @@
               history.pushState({
                 fosfenoRun: historySession, fosfenoEntry: historySession + '/' + ++historySequence
               }, '', url)
+              if (baseMode==='hidden') markBaseEntry()
             } catch {
               notify('El sketch está en vivo. El navegador no pudo guardar este paso en el historial.')
             }
@@ -850,14 +1012,18 @@
     if (loading) return
     if (sourceMix && !sourceMix.find()) {
       panelInputMix = false
+      state.mixStandaloneInput = false
       sourceMix = null
     }
     revision++
+    if (!hasSketch(cm.getValue())) baseMode='empty'
+    else if (baseMode==='empty') baseMode='visible'
     modified = true
     toggleAuto(false)
     clearTimeout(timer)
     status(live ? (armed ? 'Actualizando la salida…' : 'Ejecutá para activar este sketch.') : 'Cambios preparados.')
     refreshApply()
+    refreshLayerOverview()
     timer = setTimeout(() => {
       flush()
       if (live && armed) execute(cm.getValue())
@@ -865,7 +1031,9 @@
   })
   $('scoreName').oninput = () => {
     modified = true
+    if (!codePending() && outputBaseMode !== 'empty') outputBaseName = $('scoreName').value.trim() || 'Sin título'
     flush()
+    refreshLayerOverview()
   }
   $('run').onclick = runAll
   $('applySectors').onclick = async () => {
@@ -874,7 +1042,7 @@
     applying=true
     refreshApply()
     try {
-      if (codePending() && !await execute(cm.getValue())) return
+      if (codePending() && !await applyStudioEdits()) return
       sectors.apply()
     } finally {
       applying=false
@@ -893,10 +1061,15 @@
     live = !live
     if (live) sectors.apply()
     updateLiveEdit()
+    if (view==='library') {
+      library()
+      if (!$('catalog').hidden) filterCommunity()
+    }
     store('live-edit', live)
     clearTimeout(timer)
     flush()
-    if (live && armed) execute(cm.getValue())
+    if (live && armed && codePending()) applyStudioEdits()
+    else if (live && armed) status(baseMode==='empty' ? 'Sin fondo.' : 'Edición en vivo.')
     else status(live ? 'Ejecutá para activar este sketch.' : 'Edición manual')
     refreshApply()
   }
@@ -919,25 +1092,31 @@
   function libraryRow(item, play) {
     const row = document.createElement('div')
     row.className = 'library-row'
-    const open = document.createElement('button'), label = document.createElement('strong'),
-      group = document.createElement('span')
+    const title = document.createElement('div'), open = document.createElement('button'),
+      label = document.createElement('strong'), group = document.createElement('small')
+    title.className = 'library-title'
+    const region = layerTarget()
     open.className = 'library-item'
-    open.setAttribute('aria-label', 'Abrir ' + item.name)
+    const intent = region ? 'Usar en capa' : play && live ? 'Usar de fondo' : 'Preparar fondo'
     label.textContent = item.name
     group.textContent = item.group || 'Mi biblioteca'
-    open.append(label, group)
-    const region = layerTarget()
+    title.append(label, group)
     open.onclick = () => {
-      if (!region) return load(item,play)
+      if (!region && open.classList.contains('assigned-base')) return removeStudioBase()
+      if (!region) return load(item,play && live,true,{openCode:!play,armOnLive:play})
       sectors.toggleLibrary(region,item,true)
-      changeView('sectors')
     }
     const mix = document.createElement('button')
     mix.className = 'line-button'
     mix.textContent = 'Mezclar'
     mix.setAttribute('aria-label', 'Mezclar ' + item.name)
     const target = region || sectors.principal
-    const refresh = () => {
+    const refresh = baseCode => {
+      const isBase = !region && baseCode === item.code
+      open.classList.toggle('assigned-base', !!isBase)
+      open.textContent = isBase ? 'Quitar fondo' : region ? 'En capa' : play && live ? 'De fondo' : 'Preparar'
+      open.title = (isBase ? 'Quitar fondo' : intent) + ' · ' + item.name
+      open.setAttribute('aria-label',open.title)
       const on = target.fx.some(f=>f.kind==='library' && f.enabled!==false && f.name===item.name && f.code===item.code)
       mix.setAttribute('aria-pressed',on)
       mix.textContent = on ? 'En mezcla' : 'Mezclar'
@@ -960,13 +1139,15 @@
     strength.append(slider,level)
     mix.onclick = () => sectors.toggleLibrary(target,item,false)
     libraryRows.set(row,refresh)
-    refresh()
-    row.append(open, mix, strength)
+    refresh(baseMode==='empty' ? '' : cm.getValue())
+    row.append(title, open, mix, strength)
     return row
   }
   function library() {
-    function list(el, items, personal) {
-      el.replaceChildren(...items.map(item => libraryRow(item, !personal || live)))
+    $('blank').textContent = layerTarget() ? 'Editar código de capa' : 'Nuevo borrador'
+    refreshSeedMix()
+    function list(el, items) {
+      el.replaceChildren(...items.map(item => libraryRow(item, true)))
       if (!items.length) {
         const p = document.createElement('p')
         p.className = 'hint'
@@ -974,8 +1155,8 @@
         el.append(p)
       }
     }
-    list($('mine'), saved, true)
-    list($('sketchList'), SKETCHES, false)
+    list($('mine'), saved)
+    list($('sketchList'), SKETCHES)
   }
   let community = []
   function filterCommunity() {
@@ -1024,6 +1205,7 @@
       (b.onclick = () => {
         fold = b.dataset.fold
         selectButtons('[data-fold]', 'fold', fold)
+        refreshSeedMix()
       })
   )
   selectButtons('[data-fold]', 'fold', 'libre')
@@ -1041,7 +1223,19 @@
     } catch {}
     return seedSketch(seed)
   }
-  function generate(fromField, manual = true) {
+  function refreshSeedMix() {
+    const seed = $('seed').value.trim()
+    const isBase = !layerTarget() && baseMode!=='empty' && current.generator &&
+      String(current.generator.seed)===seed && current.generator.fold===fold &&
+      current.code===cm.getValue()
+    $('grow').textContent = isBase ? 'Quitar fondo' : layerTarget() ? 'Usar en capa' : live ? 'Usar de fondo' : 'Preparar fondo'
+    $('grow').dataset.assigned = String(!!isBase)
+    const mixed = (layerTarget() || sectors.principal).fx.some(fx => fx.kind === 'library' &&
+      fx.enabled !== false && fx.name === 'Semilla ' + seed && fx.code === growSketch(Number(seed),fold))
+    $('mixSeed').textContent = mixed ? 'En mezcla' : 'Mezclar'
+    $('mixSeed').setAttribute('aria-pressed',String(mixed))
+  }
+  function generate(fromField, manual = true, mix = false) {
     const raw = fromField ? $('seed').value.trim() : ''
     if (raw && (!/^\d+$/.test(raw) || Number(raw) > 4294967295)) {
       notify('Usá una semilla entera entre 0 y 4294967295.')
@@ -1049,14 +1243,18 @@
     }
     const seed = raw ? Number(raw) : randomSeed()
     const target = manual && layerTarget()
-    if (target) {
-      sectors.toggleLibrary(target,{name:'Semilla '+seed,code:growSketch(seed,fold)},true)
-      changeView('sectors')
+    const item = seedSketch(seed,fold)
+    if (target || mix) {
+      $('seed').value = seed
+      sectors.toggleLibrary(target || sectors.principal,item,!mix)
+      refreshSeedMix()
       return
     }
-    load(seedSketch(seed,fold),true,manual)
+    load(item,!manual || live,manual,{openCode:false,armOnLive:true})
   }
-  $('grow').onclick = () => generate(true)
+  $('grow').onclick = () => $('grow').dataset.assigned === 'true' ? removeStudioBase() : generate(true)
+  $('mixSeed').onclick = () => generate(true,true,true)
+  $('seed').oninput = refreshSeedMix
   $('explore').onclick = () => generate(false)
   $('blank').onclick = () => {
     if (layerTarget()) {
@@ -1065,25 +1263,26 @@
       $('sectorCode').focus()
       return
     }
-    load({ id: 'nuevo', name: 'Sin título', code: blankScore + '\n\n' }, false)
-    if (current.id === 'nuevo') {
-      armed = true
-      status(live ? 'Escribí una cadena Hydra. La salida se actualiza mientras editás.' : 'Escribí una cadena Hydra y ejecutala.')
-    }
+    removeStudioBase()
+    changeView('code')
+    cm.focus()
   }
   $('importCode').onclick = () => $('jsFile').click()
   $('jsFile').onchange = async (e) => {
     const file = e.target.files[0]
     try {
-      if (file && layerTarget()) {
-        const content = await file.text()
+      if (!file) return
+      const version = sectors.documentVersion, target = layerTarget()
+      const content = await file.text()
+      if (version !== sectors.documentVersion || target !== layerTarget()) return
+      if (target) {
         changeView('sectors')
         sectors.panel('layerCode',true)
         $('sectorCode').value=content
         $('sectorCode').focus()
-      } else if (file)
+      } else
         load(
-          { id: 'importado', name: file.name.replace(/\.(js|txt)$/i, ''), code: await file.text() },
+          { id: 'importado', name: file.name.replace(/\.(js|txt)$/i, ''), code: content },
           false
         )
     } catch (err) {
@@ -1145,6 +1344,11 @@
   const cameraBlend = '.blend(src(s0), 0.65)'
   function mixInput() {
     panelInputMix = true
+    state.mixStandaloneInput = true
+    if (baseMode === 'empty') {
+      $('routeStatus').textContent = 'Entrada en la composición.'
+      return
+    }
     if (!armed) {
       $('routeStatus').textContent = 'Entrada lista. Ejecutá el documento preparado o elegí Ver sólo la fuente.'
       return
@@ -1359,11 +1563,44 @@
   )
   selectButtons('[data-q]', 'q', 'auto')
 
+  function applyCompositionSettings(settings) {
+    for (const [id,value] of [['brushSize',settings.brush*100],['sensitivity',settings.sensitivity*100],
+      ['brushSpeed',(settings.brushSpeed ?? 1)*100],['brushDetail',(settings.brushDetail ?? .65)*100]]) {
+      $(id).value = value
+      $(id).oninput()
+    }
+    state.bpm = window.bpm = settings.bpm
+    const tempo = $('bpm')
+    tempo.min = Math.min(1,settings.bpm)
+    tempo.max = Math.max(220,settings.bpm)
+    tempo.value = settings.bpm
+    document.querySelector('output[for="bpm"]').textContent = settings.bpm+' BPM'
+    meterStyle(tempo)
+    state.painting = settings.painting
+    brush.reset()
+    updateBrush()
+    state.brushInverse = settings.brushInverse===true
+    $('brushInverse').setAttribute('aria-pressed',state.brushInverse)
+    selectButtons('[data-brush]','brush',settings.painting ? 'on' : 'off')
+    state.internalPulse = settings.internalPulse
+    $('internalPulse').setAttribute('aria-pressed',settings.internalPulse)
+    $('autoMixInput').setAttribute('aria-pressed',settings.autoMix)
+    state.quality = settings.quality
+    state.sketchResolution=settings.resolution || null
+    selectButtons('[data-q]','q',state.sketchResolution ? '' : state.quality)
+    fold = settings.fold
+    $('seed').value = settings.seed
+    selectButtons('[data-fold]','fold',fold)
+    engine?.show(settings.output)
+    selectButtons('[data-output]','output',settings.output)
+    refreshSound()
+  }
+
   function captureComposition() {
     const {painting,brush,brushSpeed,brushDetail,brushInverse,internalPulse,sensitivity,quality} = state
     return {name:$('scoreName').value.trim() || 'Sin título',code:cm.getValue(),regions:sectors.snapshot(),selectedSector:sectors.id,
       input:inputs[0].current?.file, inputRole:inputs[0].current?.role, inputKind:inputs[0].current?.kind || null,
-      settings:{painting,brush,brushSpeed,brushDetail,brushInverse,internalPulse,sensitivity,quality,resolution:state.sketchResolution || null,bpm:window.bpm,output:engine.output,
+      settings:{baseMode,mixStandaloneInput:!!state.mixStandaloneInput,painting,brush,brushSpeed,brushDetail,brushInverse,internalPulse,sensitivity,quality,resolution:state.sketchResolution || null,bpm:window.bpm,output:engine.output,
         autoMix:$('autoMixInput').getAttribute('aria-pressed') === 'true',fold,seed:$('seed').value}}
   }
   const creations = new CompositionLibrary({sectors, notify, capture: captureComposition, async activate(project) {
@@ -1398,32 +1635,15 @@
     try {
       if (medium) await prepareVisual(medium,null,medium.file,new AbortController().signal)
       if (version !== revision) throw new Error('El código cambió durante la carga. Volvé a elegir la composición.')
-      const item = {id:'obra',name:project.name,code:project.code}
+      const item = {id:'obra',name:project.name,code:project.code,baseMode:project.settings.baseMode}
       if (!load(item,false)) return
       if (!await execute(item.code,{fresh:true})) return
-      panelInputMix = false
+      panelInputMix = project.settings.mixStandaloneInput === true
+      state.mixStandaloneInput = panelInputMix
       sourceMix = null
       if (medium) { inputs[0].cancel(); inputs[0].replace(medium); medium=null }
       else if (inputs[0].current === originalInput && originalInput && originalInput.kind !== project.inputKind) inputs[0].clear()
-      const settings = project.settings
-      for (const [id,value] of [['brushSize',settings.brush*100],['sensitivity',settings.sensitivity*100],
-        ['brushSpeed',(settings.brushSpeed ?? 1)*100],['brushDetail',(settings.brushDetail ?? .65)*100]]) {
-        $(id).value = value; $(id).oninput()
-      }
-      state.bpm = window.bpm = settings.bpm
-      const tempo = $('bpm')
-      tempo.min = Math.min(1,settings.bpm); tempo.max = Math.max(220,settings.bpm); tempo.value = settings.bpm
-      document.querySelector('output[for="bpm"]').textContent = settings.bpm+' BPM'; meterStyle(tempo)
-      state.painting = settings.painting; brush.reset(); updateBrush()
-      state.brushInverse = settings.brushInverse===true
-      $('brushInverse').setAttribute('aria-pressed',state.brushInverse)
-      selectButtons('[data-brush]','brush',settings.painting ? 'on' : 'off')
-      state.internalPulse = settings.internalPulse; $('internalPulse').setAttribute('aria-pressed',settings.internalPulse)
-      $('autoMixInput').setAttribute('aria-pressed',settings.autoMix)
-      state.quality = settings.quality; state.sketchResolution=settings.resolution || null
-      selectButtons('[data-q]','q',state.sketchResolution ? '' : state.quality)
-      fold = settings.fold; $('seed').value = settings.seed; selectButtons('[data-fold]','fold',fold)
-      engine.show(settings.output); selectButtons('[data-output]','output',settings.output)
+      applyCompositionSettings(project.settings)
       sectors.install(next,project.selectedSector); sectors.apply(); installed = true
       resize(); refreshMix()
       notify('Composición en salida · '+project.name)
@@ -1433,8 +1653,9 @@
       if (!installed) next.flatMap(sectorLayers).forEach(layer=>layer.file?.clear())
     }
   }})
-  new LoopLibrary({
+  const loops = new LoopLibrary({
     store:(mode,job)=>sectors.store(mode,job), notify,
+    documentVersion: () => sectors.documentVersion,
     openLibrary:()=>{
       dismissToast()
       if (document.body.classList.contains('preview-focus')) layout.focus(false)
@@ -1464,6 +1685,61 @@
       }
     }
   })
+
+  async function newComposition() {
+    sectors.documentVersion++
+    dismissToast()
+    if (loops.active?.state === 'recording') loops.active.stop()
+    sound.stopSession()
+    room.disconnect()
+    panelInputMix = false
+    state.mixStandaloneInput = false
+    for (const [index,input] of inputs.entries()) {
+      input.clear()
+      const source = engine?.hydra.s[index]
+      if (source?.src) source.clear()
+    }
+    visualStatus('')
+    $('routeStatus').textContent = ''
+    sectors.groupFor = null
+    sectors.groupSelection.clear()
+    sectors.install([])
+    sectors.apply()
+    sectors.history.reset()
+    layerTreeOpen.clear()
+    setLayerScope(null)
+    state.interval = initialSettings.interval
+    state.bands = [0, 0, 0]
+    applyCompositionSettings(initialSettings)
+    const clearing = clearStudioBase()
+    sectors.panel(null)
+    changeView('sectors')
+    resize()
+    refreshMix()
+    const version = revision, emptyLayers = sectors.history.current
+    const canReloadEmpty = () => revision === version && sectors.history.current === emptyLayers &&
+      !mappingDesk() && !loops.active && !sound.recorder && !sound.active &&
+      !inputs.some(input => input.current || input.pending) && (!projector || projector.closed)
+    if (engine?.running) {
+      const reload = canReloadEmpty() && {label:'Recargar en blanco',run:()=>{
+        if (canReloadEmpty()) location.reload()
+        else notify('La sesión cambió. Se conservó tu trabajo.')
+      }}
+      notify('Salida vacía. El código anterior sigue en ejecución.',reload)
+    }
+    if (await clearing && revision === version) notify('Composición en blanco.')
+  }
+  const newDialog = $('newCompositionDialog')
+  $('newComposition').onclick = () => {
+    newDialog.showModal()
+    $('cancelNewComposition').focus()
+  }
+  $('cancelNewComposition').onclick = () => newDialog.close()
+  $('confirmNewComposition').onclick = () => {
+    newDialog.close()
+    $('newComposition').focus({preventScroll:true})
+    newComposition().catch(error => notify(messageFor(error)))
+  }
 
   let cameraListVersion = 0
   function visualStatus(message) {
@@ -1558,6 +1834,7 @@
   $('clearVisual').onclick = clearVisual
   function clearVisual() {
     panelInputMix = false
+    state.mixStandaloneInput = false
     inputs[0].clear()
     const range = sourceMix?.find()
     if (range && /^\.blend\(src\(s0\),\s*[\d.]+\)$/.test(cm.getRange(range.from, range.to))) {
@@ -1829,11 +2106,14 @@
   }
   window.captureFosfenoMapping = () => packComposition(captureComposition())
   window.restoreFosfenoMapping = async blob => {
+    const version = sectors.documentVersion
     const project = await unpackComposition(blob)
+    if (version !== sectors.documentVersion) throw new Error('La composición cambió mientras se abría el mapa.')
     if (project.kind === 'operator' || !await creations.activate(project))
       throw new Error('No se pudo recuperar el código y los sectores del mapa.')
   }
   window.moveFosfenoMappingLayer = async layer => {
+    const version = sectors.documentVersion
     const [x, y, w, h] = layer.rect
     const round = layer.mask === 'ellipse'
     const points = round ? Array.from({length: 96}, (_, i) => {
@@ -1844,7 +2124,10 @@
       shape: round ? 'Círculo' : 'Rectángulo', points, visible: layer.visible, opacity: layer.opacity,
       source: layer.file ? 'file' : 'sketch', file: layer.file, mediaRole: layer.mediaRole, paint: false, fx: []
     }])
-    if (!mappingMode) { region.file?.clear(); throw new Error('Volvé a entrar a Mapeo para mover el recorte.') }
+    if (!mappingMode || version !== sectors.documentVersion) {
+      region.file?.clear()
+      throw new Error('Volvé a elegir el recorte en Mapeo.')
+    }
     region.id = sectors.nextId++
     if (region.file) sectors.files.add(region.file)
     sectors.regions.push(region)
@@ -2169,7 +2452,15 @@
       return
     }
     const play = item ? bundled || event.state?.fosfenoRun === historySession : initialDocument.play
-    load(item || initialDocument.item, !!play)
+    if (event.state?.fosfenoBase==='hidden' && event.state.fosfenoHiddenScore) {
+      const hidden = event.state.fosfenoHiddenScore
+      load(hidden,false,false)
+      setOutputBase('hidden',hidden.name)
+      // The previous entry may still be rendering a different graph.
+      pendingFresh = true
+      appliedText = null
+    } else if (!item && event.state?.fosfenoBase==='empty') clearStudioBase()
+    else load(item || initialDocument.item, !!play)
     applyURLVisibility()
   }
   async function start() {
@@ -2185,9 +2476,25 @@
       sectors.attach(engine)
       resize()
       new ResizeObserver(resize).observe(stage)
-      await engine.run(fallback.code)
-      appliedText = fallback.code
-      if (cm.getValue() === fallback.code) status('Sketch en salida.')
+      if (history.state?.fosfenoBase==='empty' || (baseMode==='empty' && !hasSketch(cm.getValue()))) {
+        engine.clearScore()
+        appliedText = ''
+        setOutputBase('empty')
+        status(hasSketch(cm.getValue()) ? 'Sin fondo en salida. Código preparado.' : 'Sin fondo.')
+      } else if (history.state?.fosfenoBase==='hidden') {
+        // Restore the document, but never execute stored or shared JavaScript on reload.
+        engine.clearScore()
+        appliedText = null
+        baseMode = 'hidden'
+        pendingFresh = true
+        setOutputBase('hidden', current.name)
+        status('Fondo oculto.')
+      } else {
+        await engine.run(fallback.code)
+        appliedText = fallback.code
+        setOutputBase('visible',fallback.name)
+        if (cm.getValue() === fallback.code) status('Sketch en salida.')
+      }
       if (error) status(error, true)
       else if (location.protocol !== 'file:' && !history.state?.fosfenoEntry) {
         const url = new URL(location.href)

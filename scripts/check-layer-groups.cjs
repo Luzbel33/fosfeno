@@ -100,6 +100,8 @@ const { readFile } = require('node:fs/promises')
     await loop.waitFor()
     console.log('Loop playback, hierarchy and local save/reload passed')
 
+    assert.ok(await id('libraryPage').isVisible(),'selecting layers keeps the library open')
+    await page.locator('#studioNav [data-view="code"]').click()
     await page.getByRole('textbox',{name:'Nombre del sketch'}).fill('QA grupo y loop')
     await page.locator('button[data-view="library"]').click()
     await id('projectLibrary').locator('summary').click()

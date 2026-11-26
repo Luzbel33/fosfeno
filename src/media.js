@@ -129,6 +129,7 @@ class SoundDesk {
     this.message = message
     this.tracks = new Map()
     this.micStream = null
+    this.session = 0
     this.recorder = null
     this.db = trackStore().catch(() => null)
     this.levels = [0, 0, 0]
@@ -191,12 +192,14 @@ class SoundDesk {
   async play(id) {
     const tr = this.tracks.get(id)
     if (!tr) return
+    const session = this.session
     if (tr.audio && !tr.audio.paused) {
       tr.audio.pause()
       this.change()
       return
     }
     await this.start()
+    if (session !== this.session) return
     if (!tr.audio) {
       tr.url = URL.createObjectURL(tr.blob)
       tr.audio = new Audio(tr.url)
@@ -228,16 +231,26 @@ class SoundDesk {
   }
   async mic() {
     if (this.micStream) return this.micStream
-    if (!this.pendingMic) this.pendingMic = this.connectMic().finally(() => (this.pendingMic = null))
+    if (!this.pendingMic) {
+      const pending = this.connectMic(this.session).finally(() => {
+        if (this.pendingMic === pending) this.pendingMic = null
+      })
+      this.pendingMic = pending
+    }
     return this.pendingMic
   }
-  async connectMic() {
+  async connectMic(session) {
     await this.start()
+    if (session !== this.session) return null
     if (!navigator.mediaDevices?.getUserMedia)
       throw new Error('Abrí Fosfeno en localhost o HTTPS para usar el micrófono.')
     const stream = await navigator.mediaDevices.getUserMedia({
       audio: { echoCancellation: false, noiseSuppression: false, autoGainControl: false }
     })
+    if (session !== this.session) {
+      stream.getTracks().forEach(track => track.stop())
+      return null
+    }
     this.micStream = stream
     this.micNode = this.context.createMediaStreamSource(stream)
     this.micNode.connect(this.analyser)
@@ -252,14 +265,22 @@ class SoundDesk {
     this.micStream = null
     this.change()
   }
+  stopSession() {
+    this.session++
+    this.pendingMic = null
+    for (const track of this.tracks.values()) track.audio?.pause()
+    this.levels = [0, 0, 0]
+    this.stopMic()
+  }
   async record() {
     if (this.recorder?.state === 'recording') {
       this.recorder.stop()
       return
     }
     if (!window.MediaRecorder) throw new Error('Este navegador no ofrece grabación de micrófono.')
-    const stream = await this.mic(),
-      rec = new MediaRecorder(stream),
+    const stream = await this.mic()
+    if (!stream || stream !== this.micStream) return
+    const rec = new MediaRecorder(stream),
       chunks = []
     rec.ondataavailable = (e) => {
       if (e.data.size) chunks.push(e.data)

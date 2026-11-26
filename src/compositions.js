@@ -111,7 +111,10 @@ async function unpackComposition(blob) {
       !finite(m.sensitivity,.2,3) || !Number.isFinite(m.bpm) || typeof m.painting!=='boolean' ||
       typeof m.internalPulse!=='boolean' || typeof m.autoMix!=='boolean' ||
       !['libre','x','y','radial'].includes(m.fold) || typeof m.seed!=='string') invalid()
-  if ((m.brushSpeed != null && !finite(m.brushSpeed,.25,3)) ||
+  if ((m.baseMode != null && (!['visible','hidden','empty'].includes(m.baseMode) ||
+        ((m.baseMode==='empty') !== (!p.code.trim() || p.code.trim()==='// Tu sketch Hydra')))) ||
+      (m.mixStandaloneInput != null && typeof m.mixStandaloneInput!=='boolean') ||
+      (m.brushSpeed != null && !finite(m.brushSpeed,.25,3)) ||
       (m.brushDetail != null && !finite(m.brushDetail,0,1)) ||
       (m.brushInverse != null && typeof m.brushInverse!=='boolean')) invalid()
   if (p.inputRole != null && p.inputRole!=='loop') invalid()
@@ -168,7 +171,11 @@ class CompositionLibrary {
         const b = document.createElement('button')
         b.textContent = label
         b.onclick = () => this.task(async () => {
-          if (label === activateLabel) await this.activate(await unpackComposition(await get()))
+          if (label === activateLabel) {
+            const version = this.sectors.documentVersion
+            const project = await unpackComposition(await get())
+            if (version === this.sectors.documentVersion) await this.activate(project)
+          }
           if (label === 'Descargar') {
             const file = await get(), link = document.createElement('a')
             const url = URL.createObjectURL(file)
