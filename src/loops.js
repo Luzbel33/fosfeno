@@ -1,34 +1,99 @@
 class LoopLibrary {
-  constructor({store,source,use,notify,openLibrary,destination,documentVersion}) {
-    Object.assign(this,{store,source,use,notify,openLibrary,destination,documentVersion})
+  constructor({store,source,use,notify,openLibrary,destination,documentVersion,onRecordEnd}) {
+    Object.assign(this,{store,source,use,notify,openLibrary,destination,documentVersion,onRecordEnd})
     const $ = id=>document.getElementById(id)
     this.button=$('loopButton')
     this.root=$('loopList')
     this.panel=$('loopLibrary')
-    this.summary=this.panel.querySelector('summary')
+    this.dialog=$('stackLoopDialog')
+    this.slot=$('loopShelfSlot')
+    $('closeStackLoop').onclick=()=>this.dialog.close()
+    this.dialog.onclose=()=>{
+      this.stopPreview()
+      this.selection=null
+      this.slot.append(this.panel)
+      this.panel.hidden=document.querySelector('[data-shelf="loops"]').getAttribute('aria-pressed')!=='true'
+      $('importLoop').textContent='Importar video o GIF'
+      this.refresh()
+    }
     $('openLoops').onclick=()=>this.reveal()
     this.button.onclick=()=>this.record().catch(e=>notify(e.message))
-    this.panel.ontoggle=()=>{ if (this.panel.open) this.refresh() }
     $('importLoop').onclick=()=>$('loopFile').click()
     $('loopFile').onchange=async event=>{
       const file=event.target.files[0]
       event.target.value=''
       if (!file) return
-      try { await this.save(file) } catch (e) { notify(e.message) }
+      const picker=this.selection
+      try {
+        await this.save(file)
+        if (picker && this.selection===picker && this.documentVersion()===picker.version) {
+          if (await this.use(file,picker.target) && this.selection===picker) this.dialog.close()
+        }
+      } catch (e) { this.fail(e) }
     }
   }
+  fail(error) {
+    if (this.dialog.open) document.getElementById('loopPickStatus').textContent=error.message
+    else this.notify(error.message)
+  }
+  stopPreview() {
+    const preview=this.preview
+    this.preview=null
+    if (!preview) return
+    preview.button.setAttribute('aria-pressed','false')
+    if (preview.element) {
+      preview.element.pause?.()
+      preview.element.removeAttribute('src')
+      preview.element.load?.()
+      preview.element.remove()
+    }
+    if (preview.url) URL.revokeObjectURL(preview.url)
+  }
+  async previewFile(get,row,button) {
+    const wasPlaying=this.preview?.button===button
+    this.stopPreview()
+    if (wasPlaying) return
+    const preview={button,element:null}
+    this.preview=preview
+    try {
+      const file=await get()
+      if (preview!==this.preview || !row.isConnected) return
+      const gif=isGifFile(file)
+      const element=preview.element=document.createElement(gif?'img':'video')
+      if (gif) element.alt='Vista previa de '+file.name
+      else element.muted=element.loop=element.playsInline=true
+      preview.url=URL.createObjectURL(file)
+      element.src=preview.url
+      element.className='loop-preview'
+      element.setAttribute('aria-label','Vista previa de '+file.name)
+      row.append(element)
+      button.setAttribute('aria-pressed','true')
+      if (gif) await element.decode()
+      else await element.play()
+    } catch(error) {
+      if (preview===this.preview) { this.stopPreview(); this.fail(error) }
+    }
+  }
+  pick(target,name) {
+    this.selection={target,version:this.documentVersion()}
+    document.getElementById('stackLoopDestination').textContent=name
+    document.getElementById('loopPickStatus').textContent=''
+    document.getElementById('stackLoopSlot').append(this.panel)
+    document.getElementById('importLoop').textContent='Importar y usar'
+    this.panel.hidden=false
+    if (!this.dialog.open) this.dialog.showModal()
+    return this.refresh()
+  }
   reveal(key) {
-    this.openLibrary()
     this.focusKey=key
-    if (this.panel.open) this.refresh()
-    else this.panel.open=true
-    this.summary.focus()
-    this.summary.scrollIntoView({block:'nearest'})
+    this.openLibrary()
   }
   async save(file) {
-    if (!file.size || !file.type.startsWith('video/')) throw new Error('Elegí un archivo de video que se pueda reproducir.')
+    file=normalizeGifFile(file)
+    if (!file.size || !(file.type.startsWith('video/') || isGifFile(file))) throw new Error('Elegí un video o GIF que se pueda reproducir.')
     const key=await this.store('readwrite',s=>s.add(file,['loop',Date.now(),crypto.randomUUID?.() || String(Math.random()),file.name]))
-    if (this.panel.open) await this.refresh()
+    if (!this.panel.hidden) await this.refresh()
+    if (this.dialog.open) return
     this.notify('Loop guardado.',{label:'Ver loop',run:()=>this.reveal(key)})
   }
   async refresh() {
@@ -36,6 +101,7 @@ class LoopLibrary {
     try {
       const keys=await this.store('readonly',s=>s.getAllKeys(IDBKeyRange.bound(['loop'],['loop',[]])))
       if (revision!==this.listRevision) return
+      this.stopPreview()
       let focus
       this.root.replaceChildren(...keys.reverse().map(key=>{
         const row=document.createElement('div'), play=document.createElement('button'), download=document.createElement('button')
@@ -45,7 +111,7 @@ class LoopLibrary {
         const remove=document.createElement('button')
         play.textContent='Usar'
         play.setAttribute('aria-label','Usar '+key[3])
-        play.setAttribute('aria-describedby','sectorTarget')
+        play.setAttribute('aria-describedby',this.selection ? 'stackLoopDestination' : 'sectorTarget')
         download.textContent='Descargar'
         download.setAttribute('aria-label','Descargar '+key[3])
         remove.textContent='Eliminar'
@@ -55,13 +121,16 @@ class LoopLibrary {
           return file
         }
         play.onclick=async()=>{
-          const target=this.destination()
-          const version=this.documentVersion()
+          const picker=this.selection
+          const target=picker ? picker.target : this.destination()
+          const version=picker ? picker.version : this.documentVersion()
           play.disabled=true
           try {
             const file=await get()
-            if (version===this.documentVersion()) await this.use(file,target)
-          } catch (e) { this.notify(e.message) }
+            if (version!==this.documentVersion() || this.selection!==picker) return
+            const used=await this.use(file,target)
+            if (used && picker && this.selection===picker) this.dialog.close()
+          } catch (e) { this.fail(e) }
           finally { play.disabled=false }
         }
         download.onclick=async()=>{
@@ -76,12 +145,18 @@ class LoopLibrary {
           try { await this.store('readwrite',s=>s.delete(key)); await this.refresh() }
           catch (e) { this.notify(e.message) }
         }
-        row.append(title,play,download,remove)
+        const preview=document.createElement('button')
+        preview.textContent='Ver'
+        preview.setAttribute('aria-label','Vista previa de '+key[3])
+        preview.setAttribute('aria-pressed','false')
+        preview.onclick=()=>this.previewFile(get,row,preview)
+        row.append(title,play,preview)
+        if (!this.selection) row.append(download,remove)
         if (this.focusKey && indexedDB.cmp(key,this.focusKey)===0) focus=play
         return row
       }))
-      if (!keys.length) this.root.textContent='Tus grabaciones van a aparecer acá.'
-      if (this.focusKey && this.panel.open) {
+      if (!keys.length) this.root.textContent='Todavía no guardaste loops. Podés grabar uno o importar un video.'
+      if (this.focusKey && !this.panel.hidden) {
         this.focusKey=null
         if (focus) { focus.focus(); focus.closest('.loop-row').scrollIntoView({block:'nearest'}) }
       }
@@ -124,6 +199,7 @@ class LoopLibrary {
         } catch (e) { this.notify(e.message) }
         finally {
           this.active=null
+          this.onRecordEnd()
           label.textContent='Grabar loop'
           this.button.disabled=false
         }

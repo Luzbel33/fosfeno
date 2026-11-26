@@ -1,4 +1,4 @@
-const sectorShapes = ['Rectángulo', 'Cuadrado', 'Círculo', 'Rombo', 'Triángulo', 'Libre']
+const sectorShapes = ['Rectángulo', 'Cuadrado', 'Círculo', 'Óvalo', 'Rombo', 'Triángulo', 'Libre']
 const sectorLabel = sector => sector?.id ? sector.shape + ' ' + sector.id : 'Toda la visual'
 // The original sector content is the base layer, including in older saved projects.
 const sectorLayers = sector => [sector,...(sector.layers || [])]
@@ -6,10 +6,28 @@ const sectorLayerId = layer => layer.layerId ?? 0
 const sectorLayerLabel = layer => layer.label || (!layer.layerId ? 'Base' :
   (layer.source === 'group' ? 'Grupo ' : 'Capa ') + (layer.layerId+1))
 const sectorPeers = (region, layer) => region.layers?.filter(item => item.groupId === layer.groupId) || []
+const emptyLayer = () => ({source:'none',paint:false,opacity:1,fx:[]})
+const layerContentKeys = ['label','source','file','mediaRole','modelView','paint','brushSize','brushSpeed','brushDetail','brushInverse','opacity','hidden','code','fx']
+const layerPlayback = Symbol('layer playback')
+function detachSectorBase(region) {
+  // The mask and its first layer share an object in the saved format.
+  const layer = {}
+  for (const key of layerContentKeys) {
+    if (key in region) layer[key] = region[key]
+    delete region[key]
+  }
+  delete region.groupId
+  layer[layerPlayback] = region[layerPlayback]
+  delete region[layerPlayback]
+  region.request = null
+  Object.assign(region,emptyLayer())
+  return layer
+}
 const defaultSectorStyle = {fillOn:false,fill:'#bf75ff',strokeOn:false,stroke:'#ffffff',strokeWidth:4}
 const sectorStyle = sector => sector.style || defaultSectorStyle
 const sectorColorPattern = /^#[\da-f]{6}$/i
-const hasLayerContent = layer => layer.groupId || layer.source!=='sketch' || layer.paint ||
+const hasLayerContent = layer => (layer.source==='sketch' && layer.groupId) ||
+  (layer.source!=='sketch' && layer.source!=='none') || layer.paint ||
   !!layer.code || layer.fx.some(f=>f.enabled!==false)
 const effectOrigin = Symbol('effect origin')
 const layerOrigin = Symbol('layer origin')
@@ -34,6 +52,9 @@ const sectorEffects = {
   Posterizar: [5, 2, 24, 1, (g, v) => g.posterize(v, .7)],
   Graves: [.3, 0, 1, .01, (g, v) => g.scale(() => 1 + window.a.fft[0] * v())]
 }
+function quickSectorEffects() {
+  return [...Object.keys(sectorEffects),...OPERATORS.map(([name])=>name).filter(name=>!Object.hasOwn(sectorEffects,name))]
+}
 
 function regionPoints(shape, path, width, height) {
   if (shape === 'Libre') return path
@@ -46,7 +67,7 @@ function regionPoints(shape, path, width, height) {
   }
   const x = Math.min(a[0], a[0] + dx), y = Math.min(a[1], a[1] + dy)
   const w = Math.abs(dx), h = Math.abs(dy), cx = x+w/2, cy = y+h/2
-  if (shape === 'Círculo') return Array.from({length: 96}, (_, i) => {
+  if (shape === 'Círculo' || shape === 'Óvalo') return Array.from({length: 96}, (_, i) => {
     const theta = i * Math.PI / 48
     return [cx + w/2*Math.cos(theta), cy + h/2*Math.sin(theta)]
   })
@@ -61,6 +82,23 @@ function regionBounds(points) {
   return [x, y, Math.max(...xs)-x, Math.max(...ys)-y]
 }
 
+// Normalized world coordinates may extend beyond the projector's viewport.
+const sectorExtent=16
+function dragRegionPoints(original,index,dx,dy) {
+  if (index < 0) {
+    const [x,y,w,h]=regionBounds(original)
+    dx=Math.max(-sectorExtent-x,Math.min(sectorExtent-x-w,dx))
+    dy=Math.max(-sectorExtent-y,Math.min(sectorExtent-y-h,dy))
+  }
+  const span=Math.ceil(original.length/16)
+  return original.map(([x,y],i)=>{
+    const distance=Math.abs(i-index)
+    const weight=index<0 ? 1 : Math.max(0,1-Math.min(distance,original.length-distance)/span)
+    return [Math.max(-sectorExtent,Math.min(sectorExtent,x+dx*weight)),
+      Math.max(-sectorExtent,Math.min(sectorExtent,y+dy*weight))]
+  })
+}
+
 function traceRegion(ctx, points, width, height) {
   ctx.beginPath()
   points.forEach(([x,y], i) => i ? ctx.lineTo(x*width,y*height) : ctx.moveTo(x*width,y*height))
@@ -70,13 +108,20 @@ function traceRegion(ctx, points, width, height) {
 // Composite after Hydra presents its selected output. Its four feedback
 // buffers stay available to the sketch. A project with no sectors adds no draw.
 class SectorRenderer {
-  constructor(engine, input, bass) {
+  constructor(engine, input, bass, inputFile) {
     this.engine = engine
     this.input = input
     this.bass = bass
+    this.inputFile = inputFile
     this.passes = []
     const hydra = engine.hydra
     const r = engine.r
+    this.restoreUnder = r({
+      vert:hydra.o[0].vert, attributes:hydra.o[0].attributes, count:3,
+      frag:'precision mediump float; uniform sampler2D under; uniform vec2 resolution; void main(){gl_FragColor=texture2D(under,gl_FragCoord.xy/resolution);}',
+      uniforms:{under:r.prop('under'),resolution:r.prop('resolution')}, depth:{enable:false},
+      blend:{enable:true,func:{srcRGB:'one minus dst alpha',dstRGB:'one',srcAlpha:'one minus dst alpha',dstAlpha:'one'}}
+    })
     this.paint = r({
       vert:hydra.o[0].vert, attributes:hydra.o[0].attributes, count:3,
       frag:`precision mediump float;
@@ -105,15 +150,23 @@ class SectorRenderer {
       uniforms:{resolution:r.prop('resolution'),combined:r.prop('combined')},
       framebuffer:r.prop('target'), depth:{enable:false}
     })
-    const presentTexture = hydra.renderFbo
+    this.drawInput = r({
+      vert:hydra.o[0].vert, attributes:hydra.o[0].attributes, count:3,
+      frag:`precision mediump float;
+        uniform vec2 resolution; uniform sampler2D media; uniform float opacity;
+        void main() {
+          vec2 uv = gl_FragCoord.xy / resolution;
+          vec4 color = texture2D(media, vec2(uv.x,1.0-uv.y));
+          gl_FragColor = vec4(color.rgb,color.a*opacity);
+        }`,
+      uniforms:{resolution:r.prop('resolution'),media:r.prop('media'),opacity:r.prop('opacity')},
+      depth:{enable:false}, blend:{enable:true,func:{srcRGB:'src alpha',dstRGB:'one minus src alpha',srcAlpha:'one',dstAlpha:'one minus src alpha'}}
+    })
     for (const key of ['renderFbo','renderAll']) {
       const present = hydra[key]
       hydra[key] = (...args) => {
         if (engine.state.baseVisible !== false) present(...args)
-        else if (engine.state.mixStandaloneInput && this.input()) {
-          // A panel-routed input is still a source when the generative background is gone.
-          presentTexture({tex0:engine.h.s0.getTexture(),resolution:[engine.canvas.width,engine.canvas.height]})
-        } else r.clear({color:[0,0,0,1]})
+        else r.clear({color:[0,0,0,1]})
         if (this.passes.length) this.frame()
       }
     }
@@ -123,10 +176,11 @@ class SectorRenderer {
     const media = r.texture({width:1,height:1,mag:'linear'})
     const direct = layer.source === 'sketch' && !layer.paint
     const shared = layer.source === 's0' && !layer.paint
+    const principalInput = layer.id === 0 && (layer.source === 'file' || layer.source === 's0')
     const programs = []
-    const track = {layer,media,direct,shared,programs,brush:layer.paint ? new BrushSurface() : null,
+    const track = {layer,media,direct,shared,principalInput,programs,brush:layer.paint ? new BrushSurface() : null,
       release() { media.destroy(); programs.forEach(p=>p.destroy()) }}
-    const base = {getTexture: () => track.layer.source === 'group' ? this.groupTexture : direct ? this.base : shared ? h.s0.getTexture() : media}
+    const base = {getTexture: () => track.layer.source === 'group' ? this.groupTexture : direct || principalInput ? this.base : shared ? h.s0.getTexture() : media}
     const patch = (code,library) => {
       const program = new SectorProgram(this.engine,base,library)
       programs.push(program)
@@ -157,7 +211,7 @@ class SectorRenderer {
       const pass = graph.glsl()[0]
       // DOM images start in the upper left. Flip the sampling coordinate so
       // live video can use Chromium's untransformed texture upload path.
-      const uv = direct || layer.source === 'group' ? 'screen' : layer.source === 'sketch'
+      const uv = direct || principalInput || layer.source === 'group' ? 'screen' : layer.source === 'sketch'
         ? 'vec2(screen.x, 1.0-screen.y)' : 'vec2(local.x, 1.0-local.y)'
       const frag = pass.frag.replace('void main () {', 'uniform sampler2D regionMask;\nuniform float regionOpacity;\nuniform vec4 rect;\nvoid main () {')
         .replace('vec2 st = gl_FragCoord.xy/resolution.xy;', `
@@ -181,17 +235,19 @@ class SectorRenderer {
   }
   set(regions) {
     const next = [], created = []
-    const signatureFor = layer => JSON.stringify([layer.source,layer.paint,layer.code,
+    const previousTracks = new Map(this.passes.flatMap(pass=>pass.tracks.map(track=>[track.layer[layerPlayback],track])))
+    const signatureFor = layer => JSON.stringify([layer.source,layer.id===0,layer.paint,layer.code,
       layer.fx.map(f=>[f.name,f.kind,f.code,f.definitions,f.enabled])])
     try {
       for (const region of regions.filter(s => s.visible)) {
         const previous = this.passes.find(p=>p.region.id===region.id)
         const style = sectorStyle(region)
-        const layers = sectorLayers(region).filter((layer,index)=>!layer.hidden && (hasLayerContent(layer) || (!index && !style.fillOn)))
+        const layers = sectorLayers(region).filter((layer,index)=>!layer.hidden && (hasLayerContent(layer) ||
+          (!index && !style.fillOn && layer.source==='sketch')))
         const tracks = layers.map(layer=>{
           const signature = signatureFor(layer)
-          const current = previous?.tracks.find(t=>sectorLayerId(t.layer)===sectorLayerId(layer) && t.signature===signature)
-          if (current) return current
+          const current = previousTracks.get(layer[layerPlayback])
+          if (current?.signature===signature) return current
           const track = this.compileLayer(layer)
           track.signature = signature
           created.push(track)
@@ -210,7 +266,7 @@ class SectorRenderer {
     }
     for (const pass of next) pass.tracks.forEach((track,i)=>{ track.layer=pass.layers[i] })
     this.passes = next
-    if (this.base && ![...retained].some(track=>track.direct)) { this.base.destroy(); this.base = null }
+    if (this.base && ![...retained].some(track=>track.direct || track.principalInput)) { this.base.destroy(); this.base = null }
     if (this.groupBuffer && ![...retained].some(track=>track.layer.source === 'group')) {
       this.groupBuffer.destroy()
       this.groupTexture.destroy()
@@ -295,18 +351,58 @@ class SectorRenderer {
     }
     group.draw(props)
   }
+  prepareTrack(track, now) {
+    const {layer} = track
+    if (track.direct || layer.source === 'group') { track.ready = true; return }
+    if (track.shared || (track.principalInput && !track.brush && !layer.file?.current?.model && layer.file?.current?.file && layer.file.current.file === this.inputFile?.())) {
+      const src = this.engine.h.s0.src
+      track.ready = !!src || !!track.programs.length
+      return src && this.engine.h.s0.getTexture()
+    }
+    const file = layer.file?.current
+    file?.animation?.advance()
+    let el = layer.source === 'sketch' ? this.engine.canvas : layer.source === 's0' ? this.input() :
+      file?.model ? file.model.frame(layer.modelView,now,layer[layerPlayback] || layer) : file?.element
+    track.ready = !!track.programs.length
+    if (!el || (el instanceof HTMLVideoElement && el.readyState < 2)) return
+    if (track.brush) el = track.brush.paint(el,now,layer.brushSize ?? .42,this.bass(),layer.brushSpeed,layer.brushDetail,layer.brushInverse)
+    if (!el) return
+    const w = el.videoWidth || el.naturalWidth || el.width, h = el.videoHeight || el.naturalHeight || el.height
+    if (!w || !h) return
+    if (track.lastImage !== el || track.media.width !== w || track.media.height !== h) track.media({data:el, mag:'linear'})
+    else if (!(el instanceof HTMLImageElement) && (el.modelFrame===undefined || el.modelFrame!==track.lastModelFrame)) track.media.subimage(el)
+    track.lastImage = el
+    track.lastModelFrame = el.modelFrame
+    track.ready = true
+    return track.media
+  }
+  sectorFeed(on) {
+    this.isolating=on
+    if (!on) {
+      this.under?.destroy()
+      this.under=this.isolated=null
+    }
+    return this.passes.some(pass=>pass.region.id) ? this.isolated?.canvas : null
+  }
   frame() {
     const { engine } = this, { canvas, r } = engine, {width,height} = canvas
     const tracks = this.passes.flatMap(pass=>pass.tracks)
-    if (tracks.some(track=>track.direct)) {
-      if (!this.base) this.base = r.texture({width,height,mag:'linear'})
-      if (this.base.width !== width || this.base.height !== height) this.base.resize(width,height)
-      this.base.subimage({copy:true,width,height})
-    }
     const now = performance.now(), dt = Math.min(100,now-(this.lastFrame ?? now))
     const props = {time:engine.h.time, resolution:[width,height], bpm:window.bpm, target:null, dt}
     this.lastFrame = now
     const principal = this.passes.find(p=>p.region.id===0)
+    const main = principal?.tracks[0]
+    if (main) {
+      const media = this.prepareTrack(main,now)
+      if (main.principalInput && media) {
+        this.drawInput({resolution:props.resolution,media,opacity:engine.state.baseVisible !== false ? .65 : 1})
+      }
+    }
+    if (tracks.some(track=>track.direct || track.principalInput)) {
+      if (!this.base) this.base = r.texture({width,height,mag:'linear'})
+      if (this.base.width !== width || this.base.height !== height) this.base.resize(width,height)
+      this.base.subimage({copy:true,width,height})
+    }
     if (principal) {
       for (const track of principal.tracks) {
         track.ready = true
@@ -316,40 +412,38 @@ class SectorRenderer {
       if (this.base) this.base.subimage({copy:true,width,height})
     }
     // Upload before drawing any sector so sketch brushes sample the same base.
-    for (const p of tracks) {
-      if (principal?.tracks.includes(p)) continue
-      p.ready = p.direct
-      if (p.direct) continue
-      if (p.layer.source === 'group') { p.ready = true; continue }
-      if (p.shared) { p.ready = !!engine.h.s0.src || !!p.programs.length; continue }
-      const layer = p.layer
-      let el = layer.source === 'sketch' ? canvas : layer.source === 's0' ? this.input() : layer.file?.current?.element
-      if (!el || (el instanceof HTMLVideoElement && el.readyState < 2)) {
-        p.ready = !!p.programs.length
-        continue
-      }
-      if (p.brush) el = p.brush.paint(el,now,layer.brushSize ?? .42,this.bass(),layer.brushSpeed,layer.brushDetail,layer.brushInverse)
-      if (!el) continue
-      const w = el.videoWidth || el.naturalWidth || el.width, h = el.videoHeight || el.naturalHeight || el.height
-      if (!w || !h) continue
-      if (p.lastImage !== el || p.media.width !== w || p.media.height !== h) p.media({data:el, mag:'linear'})
-      else if (!(el instanceof HTMLImageElement)) p.media.subimage(el)
-      p.lastImage = el
-      p.ready = true
+    for (const track of tracks) if (track !== main) this.prepareTrack(track,now)
+    // The mapper needs the sectors' actual alpha, including holes and partial
+    // opacity. Draw them once over transparency, then put the studio back underneath.
+    const isolate=this.isolating && this.passes.some(pass=>pass!==principal)
+    if (isolate) {
+      if (!this.under) this.under=r.texture({width,height})
+      if (this.under.width!==width || this.under.height!==height) this.under.resize(width,height)
+      this.under.subimage({copy:true,width,height})
+      r.clear({color:[0,0,0,0]})
     }
     for (const pass of this.passes) if (pass!==principal) {
       for (const track of pass.tracks) if (track.ready && track.layer.source !== 'group')
         track.programs.forEach(program=>program.frame(props,dt))
       this.drawSector(pass,props)
     }
+    if (isolate) {
+      this.isolated ??= document.createElement('canvas').getContext('2d')
+      const target=this.isolated.canvas
+      if (target.width!==width || target.height!==height) { target.width=width; target.height=height }
+      this.isolated.globalCompositeOperation='copy'
+      this.isolated.drawImage(canvas,0,0)
+      this.restoreUnder({under:this.under,resolution:props.resolution})
+    }
     this.capture?.(props)
   }
 }
 
 class SectorDesk {
-  constructor({live, input, bass, connect, disconnect, onUpdate}) {
+  constructor({live, input, inputFile, bass, connect, disconnect, onUpdate}) {
     this.live = live
     this.input = input
+    this.inputFile = inputFile
     this.bass = bass
     this.onUpdate = onUpdate
     this.effectControls = new WeakMap()
@@ -447,15 +541,7 @@ class SectorDesk {
     for (const shape of sectorShapes) button($('sectorShapes'),shape,() => {
       this.panel(null); this.arm(shape)
     })
-    for (const [name, def] of Object.entries(sectorEffects)) button($('sectorFx'), name, () => {
-      const fx = this.target().fx, index = fx.findIndex(f=>!f.kind && f.name===name)
-      if (index>=0) fx[index].enabled=fx[index].enabled===false
-      else fx.push({name, value:def[0]})
-      this.changed()
-    })
-    for (const [name,code,,definition] of OPERATORS.filter(([name])=>!Object.hasOwn(sectorEffects,name))) {
-      button($('sectorFx'),name,()=>this.toggleQuick(this.target(),name,code,definition))
-    }
+    for (const name of quickSectorEffects()) button($('sectorFx'),name,()=>this.toggleNamedEffect(this.target(),name))
     $('sectorRedraw').onclick = () => this.arm(selected().shape, this.id)
     $('sectorDeform').onclick = () => {
       this.cancelDrag()
@@ -501,16 +587,12 @@ class SectorDesk {
       this.changed()
     }
     $('sectorClearInput').onclick = () => {
-      const layer = this.target()
-      layer.source='sketch'; layer.file=layer.request=null
-      this.changed()
+      this.setSource(this.target(),'none')
     }
     $('sectorDisconnect').onclick = () => { disconnect(); this.refresh() }
     for (const b of document.querySelectorAll('[data-sector-src]')) b.onclick = () => {
       const layer = this.target()
-      layer.source = b.dataset.sectorSrc
-      layer.file = layer.request = null
-      this.changed()
+      this.setSource(layer,b.dataset.sectorSrc)
       if (layer.source === 's0' && !this.input()) this.note('Conectá la webcam aquí o elegí otra fuente en Imagen.')
     }
     $('sectorCamera').onclick = async () => {
@@ -541,7 +623,8 @@ class SectorDesk {
       this.paintGuide()
     }
     document.addEventListener('keydown',e=>{
-      if (e.key!=='Escape' || (!this.drag && !this.mode) || $('helpDialog').open) return
+      if (e.defaultPrevented || e.key!=='Escape' || (!this.drag && !this.mode) ||
+          e.target.closest('input,textarea,select,[contenteditable],.CodeMirror') || document.querySelector('dialog[open]')) return
       this.cancelDrag()
       this.mode=null
       this.note('')
@@ -562,7 +645,7 @@ class SectorDesk {
   appliedLayer(layer) { return this.applied.flatMap(sectorLayers).find(s=>s[layerOrigin]===layer) }
   activeBrush() {
     const layer = this.appliedLayer(this.target())
-    return this.renderer?.passes.find(pass=>pass.region.id===this.id)?.tracks.find(track=>track.layer===layer)?.brush
+    return this.renderer?.passes.find(pass=>pass.region.id===(this.id ?? 0))?.tracks.find(track=>track.layer===layer)?.brush
   }
   moveLayer(step) {
     const region = this.selected(), layer = this.target()
@@ -573,11 +656,116 @@ class SectorDesk {
     ;[layers[a],layers[b]] = [layers[b],layers[a]]
     this.changed()
   }
+  stackTarget(address = {}) {
+    const region = address.sectorId === 0 ? this.principal : this.regions.find(s=>s.id===address.sectorId)
+    const layer = region && sectorLayers(region).find(l=>sectorLayerId(l)===(address.layerId ?? 0))
+    return {region,layer}
+  }
+  canMoveStackItem(from,to) {
+    const {region,layer} = this.stackTarget(from)
+    const {region:destination,layer:target} = this.stackTarget(to)
+    if (!layer || !target || (to.newLayer && !destination.id)) return false
+    const same = !to.newLayer && target===layer
+    switch (from.kind) {
+      case 'effect': {
+        if (!Number.isInteger(from.index) || !layer.fx[from.index]) return false
+        const length = to.newLayer ? 0 : target.fx.length
+        if (to.index != null && (!Number.isInteger(to.index) || to.index<0 || to.index>length)) return false
+        return !same || from.index !== Math.min(to.index ?? length,length-1)
+      }
+      case 'source':
+        return !same && !['none','group'].includes(layer.source) && (region.id!==0 || layer.source!=='sketch') &&
+          (to.newLayer || target.source==='none' || destination.id===0 && target.source==='sketch')
+      case 'code':
+        return !!layer.code && !same && (to.newLayer || !target.code)
+      case 'paint':
+        return !!layer.paint && !same && (to.newLayer || target.source!=='group' && !target.paint)
+      case 'layer':
+      case 'group': {
+        const group = layer.source==='group'
+        if ((!to.root && same) || !region.id || !destination.id || (from.kind==='group')!==group || to.newLayer) return false
+        if (group && !to.root && (target.source==='group' || target.groupId)) return false
+        if (to.root && region===destination && !layer.groupId && (region.layers?.at(-1)===layer || !region.layers?.length)) return false
+        return true
+      }
+      default: return false
+    }
+  }
+  moveStackItem(from,to) {
+    if (!this.canMoveStackItem(from,to)) throw new Error('Elegí otro destino libre para este elemento.')
+    const {region,layer} = this.stackTarget(from)
+    const {region:destination,layer:relative} = this.stackTarget(to)
+    let target = to.newLayer ? this.addLayer(destination,relative) : relative
+    let index
+    switch (from.kind) {
+      case 'effect': {
+        const [effect] = layer.fx.splice(from.index,1)
+        index = Math.min(to.index ?? target.fx.length,target.fx.length)
+        target.fx.splice(index,0,effect)
+        break
+      }
+      case 'source':
+        target.request = layer.request = null
+        target.source = layer.source
+        target.file = layer.file
+        target.modelView = layer.modelView
+        delete layer.modelView
+        layer.source = region.id===0 ? 'sketch' : 'none'
+        layer.file = null
+        break
+      case 'code':
+        target.code = layer.code
+        delete layer.code
+        break
+      case 'paint':
+        target.paint = true
+        layer.paint = false
+        for (const key of ['brushSize','brushSpeed','brushDetail','brushInverse']) target[key] = layer[key]
+        break
+      default:
+        target = this.transferLayer(region,layer,destination,to.root ? null : relative,to.above)
+    }
+    this.id = destination.id || null
+    this.layerSelection.set(destination,sectorLayerId(target))
+    this.groupFor = null
+    this.groupSelection.clear()
+    this.changed()
+    const result = {sectorId:destination.id,layerId:sectorLayerId(target),kind:from.kind}
+    if (index!=null) result.index=index
+    return result
+  }
+  transferLayer(region,layer,destination,relative,above) {
+    const group = layer.source==='group'
+    const siblings = destination.layers ??= []
+    const groupId = relative?.source==='group' ? relative.layerId : relative?.groupId
+    const members = group ? sectorLayers(region).filter(l=>l.groupId===layer.layerId) : []
+    const moving = [layer,...members]
+    const next = moving.map(member=>member===region ? detachSectorBase(region) : member)
+    // Preserve playback objects. Only sector-local IDs and membership change.
+    if (region.layers) {
+      for (const member of moving) {
+        const index = region.layers.indexOf(member)
+        if (index!==-1) region.layers.splice(index,1)
+      }
+    }
+    let nextId = siblings.reduce((id,l)=>Math.max(id,sectorLayerId(l)),0)
+    // IDs in the original sector stay valid even when its base becomes a movable layer.
+    if (region===destination) nextId = Math.max(nextId,...next.map(sectorLayerId))
+    for (const member of next) {
+      if (region!==destination || !member.layerId) member.layerId=++nextId
+    }
+    next[0].groupId=groupId
+    for (const member of next.slice(1)) member.groupId=next[0].layerId
+    const at=siblings.indexOf(relative)
+    if (at<0 || relative.source==='group') siblings.push(...next)
+    else siblings.splice(at+(above===false ? 0 : 1),0,...next)
+    return next[0]
+  }
   addLayer(region, target) {
     const layers = region.layers ??= []
     const layerId = 1 + layers.reduce((id,layer)=>Math.max(id,layer.layerId),0)
     const groupId = target?.source === 'group' ? target.layerId : target?.groupId
-    const layer = {layerId,groupId,opacity:1,source:'sketch',paint:false,fx:[]}
+    const layer = {...emptyLayer(),layerId,groupId}
     layers.push(layer)
     this.layerSelection.set(region,layerId)
     return layer
@@ -677,6 +865,21 @@ class SectorDesk {
   makePrincipal() {
     return {id:0,shape:'Principal',points:[[0,0],[1,0],[1,1],[0,1]],source:'sketch',visible:true,opacity:1,paint:false,fx:[]}
   }
+  setSource(layer,source) {
+    if (!this.containsLayer(layer) || layer.source === 'group' || !['sketch','none','s0'].includes(source)) return
+    layer.source = layer === this.principal && source === 'none' ? 'sketch' : source
+    layer.request = layer.file = null
+    delete layer.mediaRole
+    delete layer.modelView
+    this.changed()
+    return layer
+  }
+  removeStackSource(address) {
+    const {region,layer} = this.stackTarget(address)
+    if (!layer || layer.source === 'group') throw new Error('Elegí una capa con fuente.')
+    this.setSource(layer,'none')
+    return {sectorId:region.id,layerId:sectorLayerId(layer),kind:'layer'}
+  }
   add(region,effect,replace = false) {
     if (!this.containsLayer(region)) return
     if (replace) region.fx = region.fx.filter(f=>f.kind!=='library')
@@ -695,6 +898,17 @@ class SectorDesk {
     if (index>=0) { region.fx[index].enabled=region.fx[index].enabled===false; this.changed(); return }
     this.add(region,{kind:'operator',preset:name,name,code,definitions:definition ? [MIRRORS[definition]] : []})
   }
+  toggleNamedEffect(layer,name) {
+    if (Object.hasOwn(sectorEffects,name)) {
+      const current=layer.fx.find(fx=>!fx.kind && fx.name===name)
+      if (current) current.enabled=current.enabled===false
+      else layer.fx.push({name,value:sectorEffects[name][0]})
+      this.changed()
+      return
+    }
+    const preset=OPERATORS.find(row=>row[0]===name)
+    if (preset) this.toggleQuick(layer,name,preset[1],preset[3])
+  }
   effectAmount(region,index,value) {
     const fx=region.fx[index]
     fx.value=value
@@ -704,12 +918,13 @@ class SectorDesk {
     this.effectControls.get(fx)?.(value)
     this.onUpdate(this.selected())
   }
-  async setFile(region,file,role) {
+  async setFile(region,file,role,shared = null) {
     const request = Symbol()
     region.request = request
     const source = new VisualInput(() => {}, () => {}, () => {})
     try {
-      await source.open('file', { file, role })
+      if (shared?.file === file) source.replace(retainVisual(shared))
+      else await source.open('file', { file, role })
       if (region.request !== request || !this.containsLayer(region)) { source.clear(); return }
       if (region.source === 'group') {
         const parent = this.regions.find(item => item.layers?.includes(region))
@@ -717,6 +932,7 @@ class SectorDesk {
       }
       this.files.add(source)
       region.file = source
+      region.modelView = source.current.modelView
       region.source = 'file'
       this.changed()
       return region
@@ -724,7 +940,7 @@ class SectorDesk {
   }
   note(message) { document.getElementById('sectorStatus').textContent = message }
   attach(engine) {
-    this.renderer = new SectorRenderer(engine, this.input, this.bass)
+    this.renderer = new SectorRenderer(engine, this.input, this.bass, this.inputFile)
     this.renderer.set(this.applied)
   }
   captureSource(region) {
@@ -739,20 +955,25 @@ class SectorDesk {
     const dimensions = props => {
       const [width,height] = props.resolution
       const [x,y,w,h] = renderer.bounds(pass)
-      const left = Math.round(x*width), top = Math.round((1-y-h)*height)
-      return {left,top,width:Math.max(1,Math.min(width-left,Math.round(w*width))),
-        height:Math.max(1,Math.min(height-top,Math.round(h*height)))}
+      const left=Math.max(0,Math.round(x*width)), top=Math.max(0,Math.round((1-y-h)*height))
+      const right=Math.min(width,Math.round((x+w)*width)), bottom=Math.min(height,Math.round((1-y)*height))
+      return {left,top,width:Math.max(0,right-left),height:Math.max(0,bottom-top)}
     }
     const capture = props => {
       pass = renderer.passes.find(p=>p.region.id===region.id)
       const now = performance.now()
       if (now-frameTime < 1000/24 || !ready(pass)) return
       frameTime = now
+      const crop = dimensions(props)
+      if (!crop.width || !crop.height) {
+        context.setTransform(1,0,0,1,0,0)
+        context.fillStyle='#000'; context.fillRect(0,0,canvas.width,canvas.height)
+        return
+      }
       const [width,height] = props.resolution
       if (target.width!==width || target.height!==height) target.resize(width,height)
       r.clear({framebuffer:target,color:[0,0,0,1]})
       renderer.drawSector(pass,{...props,target})
-      const crop = dimensions(props)
       if (pixels.width!==crop.width || pixels.height!==crop.height) {
         pixels.width=crop.width; pixels.height=crop.height
       }
@@ -762,7 +983,12 @@ class SectorDesk {
       context.drawImage(pixels,0,0,canvas.width,canvas.height)
     }
     const props = {resolution:[renderer.engine.canvas.width,renderer.engine.canvas.height],time:renderer.engine.h.time,bpm:window.bpm}
-    const crop = dimensions(props), scale = Math.min(1,720/Math.max(crop.width,crop.height))
+    const crop = dimensions(props)
+    if (!crop.width || !crop.height) {
+      target.destroy()
+      throw new Error('El sector está fuera de cuadro. Centrá su máscara antes de grabar el loop.')
+    }
+    const scale = Math.min(1,720/Math.max(crop.width,crop.height))
     canvas.width = Math.max(2,Math.round(crop.width*scale/2)*2)
     canvas.height = Math.max(2,Math.round(crop.height*scale/2)*2)
     capture(props)
@@ -793,7 +1019,7 @@ class SectorDesk {
   point(e, insideOnly=false) {
     const r = this.guide.getBoundingClientRect()
     if (insideOnly && (!r.width || !r.height || e.clientX<r.left || e.clientX>r.right || e.clientY<r.top || e.clientY>r.bottom)) return null
-    const unit = v => Math.min(1,Math.max(0,v))
+    const unit = v => this.drag?.edit ? v : Math.min(1,Math.max(0,v))
     return [unit((e.clientX-r.left)/r.width),unit((e.clientY-r.top)/r.height)]
   }
   arm(shape, target = null) {
@@ -868,23 +1094,15 @@ class SectorDesk {
     if (!this.drag) { this.paintGuide(false); return }
     if (this.drag.edit) {
       const {origin,index,original} = this.drag, p = this.point(e)
-      let dx = p[0]-origin[0], dy = p[1]-origin[1]
+      const dx = p[0]-origin[0], dy = p[1]-origin[1]
       if (this.drag.moveOnly && !this.drag.moved &&
           Math.hypot(dx*this.guide.clientWidth,dy*this.guide.clientHeight)<3) return
       this.drag.moved = true
-      if (index < 0) {
-        const [x,y,w,h] = regionBounds(original)
-        dx = Math.max(-x,Math.min(1-x-w,dx)); dy = Math.max(-y,Math.min(1-y-h,dy))
-      }
-      const span = Math.ceil(original.length/16)
-      this.drag.points = original.map(([x,y],i) => {
-        const diff = Math.abs(i-index)
-        const weight = index < 0 ? 1 : Math.max(0,1-Math.min(diff,original.length-diff)/span)
-        return [Math.max(0,Math.min(1,x+dx*weight)),Math.max(0,Math.min(1,y+dy*weight))]
-      })
+      this.drag.points=dragRegionPoints(original,index,dx,dy)
       if (this.drag.moveOnly) {
-        this.drag.offset = dx!==0 || dy!==0
-        if (this.renderer) this.renderer.moving = this.live() ? {id:this.drag.id,x:dx,y:dy} : null
+        const x=this.drag.points[0][0]-original[0][0], y=this.drag.points[0][1]-original[0][1]
+        this.drag.offset = x!==0 || y!==0
+        if (this.renderer) this.renderer.moving = this.live() ? {id:this.drag.id,x,y} : null
       }
       this.paintGuide()
       return
@@ -921,6 +1139,90 @@ class SectorDesk {
     this.note('')
     this.changed()
     if (!target) document.getElementById('addSectorEffect').scrollIntoView({block:'nearest'})
+  }
+  transformControls(doc,id,aspect,report) {
+    const make=tag=>doc.createElement(tag)
+    const controls=make('details'), summary=make('summary'), fields=make('div')
+    controls.className='sector-transform'
+    controls.dataset.sector=id
+    summary.textContent='Transformar máscara'
+    controls.append(summary,fields)
+    const originate=make('details'), origin=make('summary'), grid=make('div')
+    originate.className='sector-pivot'
+    grid.setAttribute('role','group')
+    grid.setAttribute('aria-label','Origen de giro y escala')
+    let originIndex=4
+    const anchors=['Superior izquierda','Superior','Superior derecha','Izquierda','Centro','Derecha','Inferior izquierda','Inferior','Inferior derecha']
+    const updateOrigin=()=>{
+      origin.textContent='Pivote · '+anchors[originIndex]
+      Array.from(grid.children).forEach((b,i)=>b.setAttribute('aria-pressed',String(i===originIndex)))
+    }
+    for (const [i,name] of anchors.entries()) {
+      const b=make('button')
+      b.type='button'
+      b.setAttribute('aria-label',name); b.title=name
+      b.onclick=()=>{ originIndex=i; updateOrigin(); originate.open=false; origin.focus() }
+      grid.append(b)
+    }
+    updateOrigin()
+    originate.append(origin,grid); fields.append(originate)
+    const run=(action,value)=>{
+      const region=this.regions.find(r=>r.id===id)
+      if (!region) return
+      const [x,y,w,h]=regionBounds(region.points)
+      const pivot=[x+w*(originIndex%3)/2,y+h*Math.floor(originIndex/3)/2]
+      if (!this.transformRegion(id,action,value,aspect?.(),pivot))
+        report('La transformación supera los límites de tamaño.')
+    }
+    for (const [action,label,unit,initial] of [['rotate','Girar','°',15],['scale','Escalar','%',110]]) {
+      const field=make('div'), input=make('input'), submit=make('button')
+      field.className='sector-transform-field'
+      input.type='number'; input.value=initial; input.step='any'
+      if (action==='scale') input.min='0.1'
+      submit.type='button'; submit.textContent=label
+      input.setAttribute('aria-label',label+(action==='rotate'?' en grados':' en porcentaje del tamaño actual'))
+      submit.title=action==='rotate'?'Sumar este giro alrededor del pivote':'Aplicar este porcentaje al tamaño actual'
+      submit.onclick=()=>run(action,action==='scale' ? input.valueAsNumber/100 : input.valueAsNumber)
+      input.onkeydown=e=>{ if (e.key==='Enter') submit.click() }
+      field.append(input,doc.createTextNode(unit),submit); fields.append(field)
+    }
+    const center=make('button')
+    center.type='button'; center.textContent='Centrar en el lienzo'; center.dataset.command='centerShape'
+    center.onclick=()=>run('center')
+    const help=make('details'), hint=make('summary'), text=make('p')
+    hint.textContent='¿Qué se transforma?'
+    text.textContent='Los controles mueven el contorno del sector. Los archivos de sus capas se ajustan al nuevo encuadre y conservan su orientación. Para girar la imagen completa, añadila como objeto en Mapeo.'
+    help.className='sector-transform-help'
+    help.append(hint,text); fields.append(center,help)
+    return controls
+  }
+  transformRegion(id,action,value,aspect,pivot) {
+    const region=this.regions.find(r=>r.id===id)
+    if (!region) return false
+    const [x,y,w,h]=regionBounds(region.points), cx=x+w/2, cy=y+h/2
+    const [px,py]=pivot || [cx,cy]
+    const canvas=this.renderer?.engine.canvas || this.guide
+    aspect ??= canvas.width/Math.max(1,canvas.height)
+    if (!Number.isFinite(px) || !Number.isFinite(py) || !Number.isFinite(aspect) || aspect<=0) return false
+    let points
+    if (action==='center') points=dragRegionPoints(region.points,-1,.5-cx,.5-cy)
+    else if (action==='scale' && Number.isFinite(value) && value>0)
+      points=region.points.map(([u,v])=>[px+(u-px)*value,py+(v-py)*value])
+    else if (action==='rotate' && Number.isFinite(value)) {
+      const rad=value*Math.PI/180, cos=Math.cos(rad), sin=Math.sin(rad)
+      points=region.points.map(([u,v])=>{
+        const dx=(u-px)*aspect, dy=v-py
+        return [px+(dx*cos-dy*sin)/aspect,py+dx*sin+dy*cos]
+      })
+    } else return false
+    const [,,width,height]=regionBounds(points)
+    if (width<.001 || height<.001 || points.some(p=>p.some(n=>!Number.isFinite(n) || Math.abs(n)>sectorExtent)))
+      return false
+    if (points.every(([u,v],i)=>Math.abs(region.points[i][0]-u)<1e-10 && Math.abs(region.points[i][1]-v)<1e-10))
+      return true
+    region.points=points
+    this.changed()
+    return true
   }
   handles(points) {
     const step = Math.ceil(points.length/16)
@@ -978,8 +1280,9 @@ class SectorDesk {
   }
   apply() {
     if (!this.dirty || !this.renderer) return
-    const working = this.principal.fx.some(f=>f.enabled!==false) ? [this.principal,...this.regions] : this.regions
-    const copyLayer = layer => ({...layer,[layerOrigin]:layer,fx:layer.fx.map(f => ({...f,[effectOrigin]:f}))})
+    const working = hasLayerContent(this.principal) ? [this.principal,...this.regions] : this.regions
+    const copyLayer = layer => ({...layer,[layerPlayback]:layer[layerPlayback] ??= {},[layerOrigin]:layer,
+      fx:layer.fx.map(f => ({...f,[effectOrigin]:f}))})
     const next = working.map(s => ({...copyLayer(s),style:s.style && {...s.style},layers:s.layers?.map(copyLayer)}))
     const issue = document.getElementById('layerIssue')
     try { this.renderer.set(next) }
@@ -998,7 +1301,7 @@ class SectorDesk {
   }
   cleanFiles() {
     for (const file of this.files) {
-      if (![...this.regions,...this.applied].some(s=>sectorLayers(s).some(l=>l.file===file))) {
+      if (![this.principal,...this.regions,...this.applied].some(s=>sectorLayers(s).some(l=>l.file===file))) {
         file.clear(); this.files.delete(file)
       }
     }
@@ -1035,8 +1338,9 @@ class SectorDesk {
     const $ = id => document.getElementById(id)
     const s = this.selected()
     this.onUpdate(s)
+    const target = this.target(), kind = $('sectorDetail').dataset.stackKind
     for (const b of $('sectorShapes').children) b.setAttribute('aria-pressed',this.mode?.shape === b.textContent)
-    $('sectorEdit').hidden = !s
+    $('sectorEdit').hidden = !s && !['code','paint'].includes(kind)
     $('effectTarget').textContent = sectorLabel(s)
     if (s) {
       const layer = this.content(s)
@@ -1046,28 +1350,28 @@ class SectorDesk {
       $('opacityValue').value = $('sectorOpacity').value+'%'
       paintRange($('sectorOpacity'))
       $('sectorRaise').disabled = s === this.regions.at(-1)
-      for (const b of document.querySelectorAll('[data-sector-src]')) b.setAttribute('aria-pressed',b.dataset.sectorSrc === layer.source)
-      $('sectorFileButton').setAttribute('aria-pressed',layer.source === 'file')
-      $('sectorFileButton').textContent = layer.file?.current?.file?.name || 'Foto o video'
-      $('sectorCamera').hidden = layer.source !== 's0' || !!this.input()
-      $('sectorSourceActions').hidden = layer.source === 'sketch'
-      $('sectorDisconnect').hidden = layer.source!=='s0' || !this.input()
-      $('sectorPaint').setAttribute('aria-pressed',layer.paint)
-      $('sectorBrushInverse').setAttribute('aria-pressed',!!layer.brushInverse)
-      $('sectorBrushControl').hidden = !layer.paint
-      for (const [control,key,output,fallback] of [['sectorBrushSize','brushSize','sectorBrushValue',.42],
-        ['sectorBrushSpeed','brushSpeed','sectorSpeedValue',1],['sectorBrushDetail','brushDetail','sectorDetailValue',.65]]) {
-        $(control).value = Math.round((layer[key] ?? fallback)*100)
-        $(output).value = $(control).value+'%'
-        paintRange($(control))
-      }
-      if (this.codeTarget !== layer) {
-        $('sectorCode').value = layer.code || 'return base()'
-        this.panel(null)
-        this.codeTarget = layer
-      }
     }
-    const target = this.target()
+    for (const b of document.querySelectorAll('[data-sector-src]')) b.setAttribute('aria-pressed',b.dataset.sectorSrc === target.source)
+    $('sectorFileButton').setAttribute('aria-pressed',target.source === 'file')
+    $('sectorFileButton').textContent = target.file?.current?.file?.name || 'Archivo'
+    $('sectorCamera').hidden = target.source !== 's0' || !!this.input()
+    $('sectorSourceActions').hidden = target.source === 'none' || target.source === 'group'
+    $('sectorDisconnect').hidden = target.source!=='s0' || !this.input()
+    $('sectorPaint').setAttribute('aria-pressed',target.paint)
+    $('sectorBrushInverse').setAttribute('aria-pressed',!!target.brushInverse)
+    $('sectorBrushControl').hidden = !target.paint
+    for (const [control,key,output,fallback] of [['sectorBrushSize','brushSize','sectorBrushValue',.42],
+      ['sectorBrushSpeed','brushSpeed','sectorSpeedValue',1],['sectorBrushDetail','brushDetail','sectorDetailValue',.65]]) {
+      $(control).value = Math.round((target[key] ?? fallback)*100)
+      $(output).value = $(control).value+'%'
+      paintRange($(control))
+    }
+    if (this.codeTarget !== target || this.shownLayerCode !== target.code) {
+      $('sectorCode').value = target.code || 'return base()'
+      if (this.codeTarget!==target) this.panel(null)
+      this.codeTarget = target
+      this.shownLayerCode = target.code
+    }
     for (const b of $('sectorFx').children) b.setAttribute('aria-pressed',
       target.fx.some(f=>f.enabled!==false && (f.preset===b.textContent || (!f.kind && f.name===b.textContent))))
     this.renderEffects(target)
@@ -1157,10 +1461,10 @@ class SectorDesk {
     return studioStore(mode, action)
   }
   snapshot(includePrincipal = true) {
-    const regions = includePrincipal && this.principal.fx.length ? [this.principal,...this.regions] : this.regions
-    const content = ({layerId,groupId,label,hidden,opacity,source,paint,brushSize,brushSpeed,brushDetail,brushInverse,code,fx,file}) =>
+    const regions = includePrincipal && (hasLayerContent(this.principal) || this.principal.fx.length) ? [this.principal,...this.regions] : this.regions
+    const content = ({layerId,groupId,label,hidden,opacity,source,paint,brushSize,brushSpeed,brushDetail,brushInverse,code,fx,file,modelView}) =>
       ({layerId,groupId,label,hidden,opacity:opacity ?? 1,source,paint,brushSize:brushSize ?? .42,brushSpeed,brushDetail,
-        brushInverse,code,fx:fx.map(effect=>({...effect})),file:file?.current?.file,mediaRole:file?.current?.role})
+        brushInverse,code,fx:fx.map(effect=>({...effect})),file:file?.current?.file,mediaRole:file?.current?.role,...(modelView ? {modelView} : {})})
     return regions.map(s=>({id:s.id,shape:s.shape,points:s.points,visible:s.visible,style:s.style,
       ...content(s),layers:s.layers?.map(content)}))
   }
@@ -1177,8 +1481,17 @@ class SectorDesk {
     if (version === this.documentVersion) this.install(prepared,undefined,true)
     else for (const layer of prepared.flatMap(sectorLayers)) layer.file?.clear()
   }
-  async prepare(data) {
+  async prepare(data, reusePlayers = false) {
     const next = [], opened = []
+    const players = new Map()
+    if (reusePlayers) for (const source of this.files) {
+      const {current} = source
+      if (current?.file) {
+        // Two independent playheads can intentionally use the same File.
+        const prior = players.get(current.file)
+        players.set(current.file,prior === undefined || prior === current ? current : null)
+      }
+    }
     try {
       for (const entry of data) {
         const copy = layer => ({...layer,fx:layer.fx.map(effect=>({...effect}))})
@@ -1189,7 +1502,9 @@ class SectorDesk {
           if (file) {
             layer.file = new VisualInput(() => {},() => {},() => {})
             opened.push(layer.file)
-            await layer.file.open('file',{file,role:layer.mediaRole})
+            const player = players.get(file)
+            if (player && player.role===layer.mediaRole) layer.file.replace(retainVisual(player))
+            else await layer.file.open('file',{file,role:layer.mediaRole})
           }
         }
         next.push(region)

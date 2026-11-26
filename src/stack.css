@@ -1,0 +1,94 @@
+#layerOverview .layer-select {
+  align-items: flex-start;
+  justify-content: center;
+  flex-direction: column;
+  gap: 1px;
+  padding: 6px 8px;
+}
+#stackBrowser { min-width:0; }
+/* Keep the selected object's inspector reachable even with a long layer stack. */
+.three-pane #layerDesk:not([hidden]) {
+  display:flex; flex-direction:column; min-height:0; overflow:hidden;
+}
+.three-pane #layerDesk > .sector-header, .three-pane #sectorStorage { flex:none; }
+.three-pane #stackBrowser {
+  flex:0 1 auto; min-height:80px; max-height:57%;
+  overflow:auto; overscroll-behavior:contain; scrollbar-width:thin;
+}
+.three-pane #sectorDetail {
+  flex:1 1 120px; min-height:88px; overflow:auto; overscroll-behavior:contain;
+  scrollbar-width:thin; scroll-padding-block:6px;
+}
+body:not(.three-pane) #layerDesk[data-stack-detail=true] :is(#stackBrowser,#sectorStorage) { display:none; }
+body:not(.three-pane) #layerDesk[data-stack-detail=true] #sectorDetail { margin-top:0; padding-top:4px; border-top:0; }
+#layerOverview .layer-count {
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+#layerOverview .layer-count:empty { display:none; }
+#layerOverview .layer-select strong { font-size:13px; }
+#layerOverview .layer-tree-head .layer-tree-state { color:var(--dim); }
+#layerOverview .layer-tree { padding: 3px 5px 7px 9px; }
+#layerOverview .layer-tree-item { margin: 1px 0; }
+#layerOverview .layer-tree-signals { display:grid; padding:1px 0 3px; }
+#layerOverview .layer-tree-signals button:not(.layer-tree-power),
+#layerOverview .layer-tree-name { display:inline-flex; align-items:center; justify-content:flex-start; gap:6px; }
+#layerOverview .layer-tree-signals .icon, #layerOverview .layer-tree-name .icon { flex:none; width:12px; height:12px; opacity:.75; }
+#layerOverview .layer-tree-source,
+#layerOverview .layer-tree-effect-name {
+  min-width: 0;
+  max-width: 100%;
+  width: 100%;
+  padding: 4px 5px;
+  border-radius: 4px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+#layerOverview [data-current-item=true] {
+  background:#303c31;
+  box-shadow:inset 2px 0 var(--green);
+  color:var(--text);
+}
+#layerOverview [draggable=true] { cursor:grab; }
+#layerOverview [draggable=true]:active { cursor:grabbing; }
+#layerOverview [data-drop=true] { outline:1px solid var(--green); outline-offset:-1px; }
+#layerOverview button:focus-visible, #stackActions button:focus-visible,
+#stackDestinations button:focus-visible { outline:2px solid var(--green); outline-offset:-2px; }
+#sectorDetail #layerSelectionCaption {
+  font:600 14px/1.4 system-ui,sans-serif;
+  overflow-wrap:anywhere;
+}
+#stackBack {
+  display:inline-flex; justify-content:flex-start; min-height:26px; max-width:100%; padding:0;
+  color:var(--dim); text-align:left; font-size:12px; overflow-wrap:anywhere; background:transparent;
+}
+#stackActions { display:flex; align-items:center; gap:4px; flex-wrap:wrap; margin-bottom:8px; }
+#stackActions button, #stackDestinations button {
+  min-height:30px; max-width:100%; border:1px solid var(--line); border-radius:5px; padding:4px 8px;
+}
+#stackActions :is(#stackUp,#stackDown) { min-width:30px; }
+#stackDestinations { display:grid; gap:2px; max-height:min(250px,36dvh); overflow:auto; }
+#stackDestinations button { justify-content:flex-start; text-align:left; overflow-wrap:anywhere; border-color:transparent; }
+#sectorDetail .sector-commands,
+#sectorDetail[data-selection="0"] .sector-commands {
+  display:flex; flex-wrap:wrap; gap:4px; align-items:center;
+}
+/* Moving and removing the selected content belongs to its contextual toolbar. */
+#sectorDetail[data-stack-kind=effect] .effect-commands { display:none; }
+#sectorDetail[data-stack-kind=effect] .effect-row-heading strong,
+#sectorDetail[data-stack-kind=effect] .sector-commands,
+#sectorDetail:is([data-stack-kind=source],[data-stack-kind=code],[data-stack-kind=paint]) #sectorControls,
+#sectorDetail:is([data-stack-kind=effect],[data-stack-kind=source],[data-stack-kind=code],[data-stack-kind=paint]) #sectorEdit > :is(.layer-opacity,.layer-actions),
+#sectorDetail:is([data-stack-kind=source],[data-stack-kind=code],[data-stack-kind=paint]) .sector-commands > :not(#stackLoop,#stackMedia,#stackSignalSettings) { display:none; }
+#sectorDetail:is([data-stack-kind=code],[data-stack-kind=paint]) .sector-commands { display:none; }
+#sectorDetail[data-stack-kind=effect] .mixer-effect,
+#sectorDetail[data-stack-kind=effect] #sectorControls { margin-top:4px; }
+#sectorDetail:is([data-stack-kind=effect],[data-stack-kind=source],[data-stack-kind=code],[data-stack-kind=paint]) .sector-stack { display:none; }
+#sectorDetail[data-selection="0"] #sectorEdit > :is(.layer-opacity,.layer-actions),
+#sectorDetail[data-selection="0"][data-stack-kind=paint] #sectorMedia > :not(#sectorBrushControl) { display:none; }
+@media(pointer:coarse) {
+  #layerOverview button, #stackActions button, #stackDestinations button, #stackLoop { min-height:44px; }
+}

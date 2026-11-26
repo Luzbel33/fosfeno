@@ -19,7 +19,7 @@ async function main() {
   const projects=async p=>{
     await tab(p,'library')
     if (!await p.locator('#projectSave').isVisible())
-      await p.locator('#projectLibrary > summary').click()
+      await p.locator('[data-shelf=projects]').click()
   }
   async function pixels(p,x,y,color) {
     await p.waitForFunction(({x,y,color})=>{

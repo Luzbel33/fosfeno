@@ -95,16 +95,20 @@ async function checkCamera(real) {
     }
     const chosen = await active.textContent()
     await page.waitForFunction(() => s0.src?.videoWidth && s0.src === document.querySelector('#sourcePreview video'))
-    await page.waitForFunction(() => cm.getValue().includes('.blend(src(s0)') &&
-      document.querySelector('#codeStatus').textContent.includes('Sketch ejecutado'))
-    // Compare both buffers from the same frame without keeping any camera pixels.
+    assert.equal(await page.evaluate(() => cm.getValue()),'solid(1,0,0).out(o0)')
+    // The stack mixes into the projected canvas; o0 stays under the sketch's control.
     const matches = await page.evaluate(() => {
       src(s0).out(o3)
       hydraSynth.tick(40)
-      const pixel = (output) => hydraSynth.regl.read({framebuffer:output.getCurrent(),
-        x:Math.floor(width/2),y:Math.floor(height/2),width:1,height:1})
-      const a = pixel(o0), b = pixel(o3)
-      return [0,1,2].every(i => Math.abs(a[i] - (.65*b[i] + (i === 0 ? .35*255 : 0))) <= 2)
+      return [[.21,.19],[.46,.41],[.71,.69]].every(([u,v]) => {
+        const x=Math.floor(width*u), y=Math.floor(height*v)
+        const pixel = (output) => hydraSynth.regl.read({framebuffer:output.getCurrent(),
+          x,y:height-y-1,width:1,height:1})
+        const a = hydraSynth.regl.read({x,y,width:1,height:1})
+        const b = pixel(o3), base = pixel(o0)
+        return base[0]===255 && base[1]===0 && base[2]===0 &&
+          [0,1,2].every(i => Math.abs(a[i] - (.65*b[i] + .35*base[i])) <= 3)
+      })
     })
     assert.ok(matches, 'The panel connection must appear in the projected mix without pressing Run')
     await page.evaluate(() => {

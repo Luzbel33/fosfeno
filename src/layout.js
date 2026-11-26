@@ -81,6 +81,7 @@ class StudioLayout {
     this.open(false)
     this.arrangeChrome()
     this.showPanes('sectors')
+    document.body.classList.add('tool-collapsed')
   }
   activeView(view) { return this.wide.matches && view === 'sectors' ? 'code' : view }
   showPanes(view) {
@@ -97,7 +98,7 @@ class StudioLayout {
     this.codeHeading.hidden = active !== 'code'
     if (wide) {
       const header = active === 'library' ? document.querySelector('.library-heading .section-line') :
-        active === 'signal' ? document.querySelector('#panel > .tabs') : this.codeHeading
+        active === 'signal' ? document.getElementById('signalHeading') : this.codeHeading
       if (this.closeInspector.parentElement !== header) header.append(this.closeInspector)
     }
   }
@@ -156,8 +157,9 @@ class StudioLayout {
     const close = document.getElementById('closeTools')
     close.hidden = !showDrawer
     close.setAttribute('aria-label','Cerrar panel')
-    const header = document.querySelector('#layerDesk .sector-header')
-    if (showDrawer && !document.getElementById('layerDesk').hidden) {
+    const activePane = this.studio.querySelector('[data-viewpane]:not([hidden])')
+    const header = activePane?.querySelector('.sector-header,.library-heading .section-line,.tool-heading,.fileline')
+    if (showDrawer && header) {
       if (close.parentElement!==header) header.append(close)
     } else if (close.parentElement!==this.studio) this.studio.prepend(close)
     for (const button of document.querySelectorAll('#studioNav button')) {

@@ -117,7 +117,7 @@ async function main() {
       const wide = width>=1180 && height>=610
       if (wide) {
         const mix = await id('layerDesk').boundingBox(), code = await id('editorPage').boundingBox()
-        assert.ok(mix && code && mix.x+mix.width<=original.x && original.x+original.width<=code.x)
+        assert.ok(mix && !code && mix.x+mix.width<=original.x,'start with the stack and a large monitor')
         assert.equal(await id('backToLayers').isVisible(),false,'only show the opener when Sectores is closed')
         assert.ok(await id('layerDesk').isVisible())
         await id('closeSectors').click()
@@ -207,17 +207,18 @@ async function main() {
       await audit('operator parameters '+width)
       for (const name of ['library','signal','sectors']) {
         await openStudio(page,name)
-        if (name==='library') await page.locator('#projectLibrary > summary').click()
+        if (name==='library') await page.locator('[data-shelf=projects]').click()
         await audit(name+' '+width)
         if (wide && name!=='sectors') {
           const inspector = await id('inspectorDesk').boundingBox(), stage = await id('stage').boundingBox()
           assert.ok(inspector && inspector.x>=stage.x+stage.width-1)
-          assert.deepEqual(stage,original,name+' preserves the visual')
+          assert.deepEqual(stage,editStage,name+' preserves the visual')
           assert.ok(await id('layerDesk').isVisible() && !await id('editorPage').isVisible(),name+' keeps the mix visible')
         }
         if (compact) assert.deepEqual(await id('stage').boundingBox(),editStage,name+' preserves the compact monitor')
         if (name==='signal') {
           for (const tab of ['audio','out']) {
+            if (tab==='out') await id('chooseOutput').click()
             await page.locator('[data-tab='+tab+']').click()
             await audit(tab+' '+width)
           }
@@ -228,7 +229,7 @@ async function main() {
         assert.ok(await page.locator('[data-pane=audio]').isVisible())
         await openStudio(page,'code')
         assert.ok(await id('editorPage').isVisible() && !await id('panel').isVisible())
-        assert.deepEqual(await id('stage').boundingBox(),original,'Code replaces Audio in the inspector')
+        assert.deepEqual(await id('stage').boundingBox(),editStage,'Code replaces Audio in the inspector')
       }
       const divider = id('splitter')
       const vertical = await divider.getAttribute('aria-orientation') === 'vertical'

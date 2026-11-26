@@ -1,5 +1,5 @@
 class SectorHistory {
-  constructor(desk, { active = () => true, notify = message => desk.note(message) } = {}) {
+  constructor(desk, { notify = message => desk.note(message) } = {}) {
     this.desk = desk
     this.notify = notify
     this.past = []
@@ -7,26 +7,6 @@ class SectorHistory {
     this.fileIds = new WeakMap()
     this.nextFileId = 0
     this.reset()
-    document.addEventListener('keydown', event => {
-      if (event.defaultPrevented || event.isComposing || event.altKey || event.repeat ||
-          !(event.ctrlKey || event.metaKey) || !active(event)) return
-      const textInput = 'input:not([type=range],[type=checkbox],[type=radio],[type=button]),textarea,select'
-      if (event.target.closest?.(textInput + ',[contenteditable]:not([contenteditable="false"]),.CodeMirror') ||
-          document.querySelector('dialog[open]') || window.getSelection()?.isCollapsed === false) return
-      const key = event.key.toLowerCase()
-      if (key === 'c' && !event.shiftKey) {
-        if (this.copy()) event.preventDefault()
-      } else if (key === 'v' && !event.shiftKey && this.clipboard) {
-        event.preventDefault()
-        this.paste()
-      } else if (key === 'z' || key === 'y') {
-        const redo = key === 'y' || event.shiftKey
-        if (!(redo ? this.future.length : this.past.length)) return
-        event.preventDefault()
-        if (redo) this.redo()
-        else this.undo()
-      }
-    })
   }
 
   entry() {
@@ -65,7 +45,7 @@ class SectorHistory {
   undo() { return this.step(this.past, this.future, 'Cambio deshecho.') }
   redo() { return this.step(this.future, this.past, 'Cambio rehecho.') }
 
-  // File handles remain immutable in history. prepare creates fresh playback sources.
+  // Keep the playhead when undoing a move of a file that is still playing.
   async step(from, to, message) {
     if (this.busy || this.desk.drag) return
     this.remember()
@@ -73,7 +53,7 @@ class SectorHistory {
     if (!next) return
     this.busy = true
     try {
-      const prepared = await this.desk.prepare(next.regions)
+      const prepared = await this.desk.prepare(next.regions,true)
       if (this.current !== previous) {
         this.release(prepared)
         return this.notify('La pila cambió mientras se cargaban los archivos. Volvé a intentar.')
@@ -98,30 +78,24 @@ class SectorHistory {
     }
   }
 
-  copy() {
+  capture(kind) {
     const target = this.desk.target(), id = this.desk.selected()?.id
     const region = id && this.desk.snapshot(false).find(item => item.id === id)
     if (!region || this.desk.drag) return false
-    if (!target.layerId) {
-      this.clipboard = { region }
-      this.notify('Sector copiado.')
-      return true
-    }
+    if (kind==='sector' || (kind!=='layer' && !target.layerId)) return {region}
     const group = target.source === 'group'
     const { id: sector, shape, points, visible, style, layers, ...base } = region
     const include = layer => layer.layerId === target.layerId || (group && layer.groupId === target.layerId)
-    this.clipboard = {
+    return {
       layers: [base, ...(layers || [])].filter(include),
       groupId: group ? target.layerId : null,
       label: group ? 'Grupo' : 'Capa'
     }
-    this.notify(this.clipboard.label + (group ? ' copiado.' : ' copiada.'))
-    return true
   }
 
-  async paste() {
-    if (this.busy || this.desk.drag || !this.clipboard) return
-    const item = this.clipboard, targetRegion = this.desk.selected()
+  async paste(item=this.clipboard) {
+    if (this.busy || this.desk.drag || !item) return
+    const targetRegion = this.desk.selected()
     if (!item.region && !targetRegion) return this.notify('Seleccioná un sector para pegar esta capa.')
     this.busy = true
     try {
@@ -137,10 +111,7 @@ class SectorHistory {
   async pasteSector(source) {
     const version = this.desk.documentVersion
     const [x, y, width, height] = regionBounds(source.points)
-    const offset = (start, size) => Math.max(-start, Math.min(1 - size - start, start + size > .97 ? -.03 : .03))
-    const dx = offset(x, width), dy = offset(y, height)
-    const points = source.points.map(([left, top]) =>
-      [Math.max(0, Math.min(1, left + dx)), Math.max(0, Math.min(1, top + dy))])
+    const points=dragRegionPoints(source.points,-1,x+width>.97 ? -.03 : .03,y+height>.97 ? -.03 : .03)
     const [region] = await this.desk.prepare([{ ...source, points }])
     if (version !== this.desk.documentVersion) {
       this.release([region])

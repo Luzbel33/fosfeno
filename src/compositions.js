@@ -48,16 +48,19 @@ async function unpackComposition(blob) {
   let offset = header+bytes
   const files = p.assets.map(a => {
     if (!a || !Number.isSafeInteger(a.size) || a.size < 0 || offset+a.size > blob.size ||
-        typeof a.name !== 'string' || typeof a.type !== 'string' || !/^(image|video)\//.test(a.type)) invalid()
+        typeof a.name !== 'string' || typeof a.type !== 'string' || (!/^(image|video)\//.test(a.type) && !isModelFile(a))) invalid()
     const file = new File([blob.slice(offset,offset+a.size)],a.name,{type:a.type})
     offset += a.size
     return file
   })
   if (offset !== blob.size) invalid()
   const fileAt = i => i === null ? null : Number.isInteger(i) && files[i] ? files[i] : invalid()
+  const containsPose = p.inputModelView!=null || p.regions.some(region=>region?.modelView!=null || region?.layers?.some?.(layer=>layer?.modelView!=null))
+  const readPose = containsPose ? (await import('./pose-3d.mjs?v=3.0')).readPose : null
+  if (p.inputModelView!=null) p.inputModelView=readPose(p.inputModelView)
   const finite = (v,min,max) => Number.isFinite(v) && v>=min && v<=max
   function readLayer(layer) {
-    if (!['file','sketch','s0','group'].includes(layer.source) || typeof layer.paint !== 'boolean' ||
+    if (!['file','sketch','s0','none','group'].includes(layer.source) || typeof layer.paint !== 'boolean' ||
         (layer.groupId != null && (!Number.isSafeInteger(layer.groupId) || layer.groupId<1)) ||
         (layer.label != null && (typeof layer.label!=='string' || layer.label.length>60)) ||
         (layer.hidden != null && typeof layer.hidden!=='boolean') ||
@@ -77,13 +80,14 @@ async function unpackComposition(blob) {
           return !f.kind && Object.hasOwn(sectorEffects,f.name) && finite(f.value,sectorEffects[f.name][1],sectorEffects[f.name][2])
         }) || (layer.source==='file') !== (layer.file!==null)) invalid()
     layer.file = fileAt(layer.file)
+    if (layer.modelView!=null) layer.modelView=readPose(layer.modelView)
   }
   const ids = new Set()
   for (const r of p.regions) {
     if (!r || !Number.isSafeInteger(r.id) || r.id < 0 || ids.has(r.id) || typeof r.visible !== 'boolean' ||
         !(r.id===0 ? r.shape==='Principal' : sectorShapes.includes(r.shape)) ||
         !Array.isArray(r.points) || r.points.length<3 || r.points.length>4096 ||
-        !r.points.every(v=>Array.isArray(v) && v.length===2 && v.every(n=>finite(n,0,1))) ||
+        !r.points.every(v=>Array.isArray(v) && v.length===2 && v.every(n=>r.id===0 ? finite(n,0,1) : finite(n,-sectorExtent,sectorExtent))) ||
         (r.layerId != null && r.layerId!==0)) invalid()
     const [, ,w,h] = regionBounds(r.points)
     if (!w || !h) invalid()
@@ -118,6 +122,7 @@ async function unpackComposition(blob) {
       (m.brushDetail != null && !finite(m.brushDetail,0,1)) ||
       (m.brushInverse != null && typeof m.brushInverse!=='boolean')) invalid()
   if (p.inputRole != null && p.inputRole!=='loop') invalid()
+  if (p.music != null && !validMusicDraft(p.music)) invalid()
   return {...p,input:fileAt(p.input)}
 }
 
@@ -128,9 +133,6 @@ class CompositionLibrary {
     this.notify = notify
     const $ = id => document.getElementById(id)
     this.root = $('projectList')
-    $('projectLibrary').ontoggle = () => {
-      if ($('projectLibrary').open) this.list().catch(e=>notify(e.message))
-    }
     $('projectSave').onclick = () => this.task(async () => {
       const project = capture()
       await this.add(project.name,packComposition(project))
@@ -193,5 +195,6 @@ class CompositionLibrary {
       return row
     })
     this.root.replaceChildren(...rows)
+    if (!rows.length) this.root.textContent='Todavía no guardaste proyectos u operadores.'
   }
 }

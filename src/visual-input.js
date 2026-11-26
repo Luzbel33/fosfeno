@@ -1,10 +1,40 @@
 function stopTracks(stream) {
   stream?.getTracks().forEach((track) => track.stop())
 }
+function isModelFile(file) {
+  return !!file && (file.type === 'model/gltf-binary' || /\.glb$/i.test(file.name))
+}
+
+// Only load the 3D controls for an actual model, and keep the current selection on async completion.
+function modelViewControls(host, view, preview, commit) {
+  const previous=host.modelEdit
+  host.hidden = !commit
+  host.modelEdit = commit ? { view, preview, commit } : null
+  if (!commit) return
+  if (host.modelSync) {
+    if (!previous || previous.view!==view) host.modelSync(view)
+    return
+  }
+  if (host.loadingPose) return
+  host.loadingPose = import('./pose-3d.mjs?v=3.0').then(({poseControls}) => {
+    host.modelSync = poseControls(host, p=>host.modelEdit?.preview(p), p=>host.modelEdit?.commit(p), {camera:true})
+    if (host.modelEdit) host.modelSync(host.modelEdit.view)
+  })
+}
+
+// A file can feed both s0 and a movable layer without starting a second decoder.
+function retainVisual(input) {
+  if (!input?.file) throw new Error('Sólo se pueden compartir entradas de archivo.')
+  input.owners = (input.owners ?? 1) + 1
+  return input
+}
 
 function releaseVisual(input) {
   if (!input) return
+  if (input.owners > 1) { input.owners--; return }
   stopTracks(input.stream)
+  input.model?.dispose()
+  input.animation?.close()
   if (input.element instanceof HTMLVideoElement) {
     input.element.pause()
     input.element.srcObject = null
@@ -86,6 +116,23 @@ async function acquireCamera(choice, input, signal) {
 }
 
 async function prepareVisual(input, choice, file, signal) {
+  if (isModelFile(file)) {
+    const {openModel} = await import('./model-source.mjs?v=3.0')
+    signal.throwIfAborted()
+    const model = await openModel(file,signal)
+    if (signal.aborted) { model.dispose(); signal.throwIfAborted() }
+    input.model = model
+    input.element = model.frame(input.modelView)
+    return
+  }
+  if (file && isGifFile(file)) {
+    input.file = normalizeGifFile(file)
+    const data = await file.arrayBuffer()
+    signal.throwIfAborted()
+    input.animation = new GifAnimation(data)
+    input.element = input.animation.canvas
+    return
+  }
   if (file) input.url = URL.createObjectURL(file)
   if (file?.type.startsWith('image/')) {
     const image = new Image()

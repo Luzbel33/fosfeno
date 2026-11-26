@@ -268,6 +268,7 @@ class SoundDesk {
   stopSession() {
     this.session++
     this.pendingMic = null
+    this.music?.restore(null)
     for (const track of this.tracks.values()) track.audio?.pause()
     this.levels = [0, 0, 0]
     this.stopMic()
@@ -311,6 +312,7 @@ class SoundDesk {
     return (
       !!this.micStream ||
       !!this.visualNode ||
+      !!this.music?.playing ||
       Array.from(this.tracks.values()).some((t) => t.audio && !t.audio.paused)
     )
   }

@@ -134,16 +134,18 @@ async function main() {
     await page.waitForFunction(()=>/Loop guardado|elegí un archivo|no se pudo grabar/i.test(document.getElementById('toast').textContent))
     assert.match(await id('toast').textContent(),/Loop guardado/)
     await tab('library')
-    await page.locator('#loopLibrary > summary').click()
+    await page.locator('[data-shelf=loops]').click()
     const reuse=id('loopList').getByRole('button',{name:/Usar Rectángulo/})
     await reuse.click()
     await page.waitForFunction(()=>document.getElementById('sectorFileButton').textContent.includes('Rectángulo'))
-    await id('sectorControls').getByRole('button',{name:'Quitar Eco azul del sector'}).click()
+    await id('sector-tree-1').getByRole('button',{name:/Editar Eco azul en/}).click()
+    await id('stackRemove').click()
     await page.waitForFunction(()=>{
       const {regl,canvas}=hydraSynth
       const [red,green,blue]=regl.read({x:canvas.width/2,y:canvas.height/2,width:1,height:1})
       return Math.abs(red-120)<18 && green<18 && Math.abs(blue-135)<18
     })
+    await id('sector-tree-1').getByRole('button',{name:/^Loop · Rectángulo/}).click()
     await id('sectorClearInput').click()
     await id('sectorCodeToggle').click()
     await id('sectorCode').fill('solid(0,1,0).out()')

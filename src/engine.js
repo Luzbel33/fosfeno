@@ -69,8 +69,14 @@ class VisualEngine {
       const clear = s.clear.bind(s)
       const tick = s.tick.bind(s)
       const input = inputs[index]
+      let lastModel, lastFrame
       s.tick = (time) => {
         const video = s.src
+        if (video?.modelFrame && video===this.attached[index] && s.dynamic) {
+          if (video===lastModel && video.modelFrame===lastFrame) return
+          lastModel=video
+          lastFrame=video.modelFrame
+        } else lastModel=null
         if (video instanceof HTMLVideoElement && video === this.attached[index] && s.dynamic) {
           if (video.readyState < 2 || !video.videoWidth || !video.videoHeight) return
           if (video.videoWidth !== s.tex.width || video.videoHeight !== s.tex.height)

@@ -100,7 +100,7 @@ async function main() {
       video.addEventListener('seeking',()=>{clearTimeout(timeout); resolve()},{once:true})
     }))
     await id('sector-tree-1').getByRole('button',{name:'Base',exact:true}).click()
-    assert.equal(await id('sectorFileButton').textContent(),'Foto o video')
+    assert.equal(await id('sectorFileButton').textContent(),'Archivo')
     assert.deepEqual(errors,[])
     console.log('Output and sector recordings, saved-row focus, download, reload, global mix, selected layer and repeated playback passed.')
   } finally { await browser.close() }
