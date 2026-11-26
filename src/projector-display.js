@@ -86,7 +86,7 @@ window.fosfenoDisplay = (() => {
     const attempt = generation, page = output.document
     const current=()=>attempt===generation && alive(output) && output.document===page
     if (page.fullscreenElement) {
-      if (onScreen(output,screen)) return
+      if (onScreen(output,screen)) return report('Salida ubicada en '+label(screen)+' · Pantalla completa.')
       if (couldBeTab(output)) return report(separate+manual)
       if (await canFullscreen(output) && current()) {
         try { await page.documentElement.requestFullscreen({screen,navigationUI:'hide'}) } catch {}

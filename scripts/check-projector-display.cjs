@@ -86,8 +86,11 @@ async function check() {
         fullscreenEvents.push([name,!!document.fullscreenElement,navigator.userActivation.isActive,event.target.nodeName])
       })
     })
+    await page.locator('#toast').evaluate(el=>{el.textContent=''})
     await run.click()
     assert.equal(context.pages().length,2)
+    // Wait until the automatic fullscreen attempt finishes before toggling it by hand.
+    await page.waitForFunction(()=>document.querySelector('#toast').textContent.includes('Salida ubicada en'))
     if (!await output.evaluate(()=>!!document.fullscreenElement)) await output.locator('video').dblclick()
     await output.waitForFunction(()=>!!document.fullscreenElement,null,{timeout:6000}).catch(async cause=>{
       const state=await output.evaluate(()=>[screenX,screenY,outerWidth,outerHeight,fullscreenEvents])
