@@ -18,7 +18,7 @@
     </main>
     <script>
       const destino = new URL(location.protocol==='file:' ? 'index.html' : './', location.href)
-      const version = '3.1.8'
+      const version = '3.1.9'
       destino.search = location.search
       destino.searchParams.set('v',version)
       destino.hash = location.hash
