@@ -1,6 +1,6 @@
 // Bump the asset version when publishing a new edition of the cabina.
 const prefix = 'fosfeno-' + new URL(self.registration.scope).pathname + '-'
-const cacheName = prefix + 'v2.19'
+const cacheName = prefix + 'v2.20'
 const files = [
   'index.html',
   'abrir.html',
@@ -16,7 +16,7 @@ const files = [
   'src/engine.js?v=2.16',
   'src/media.js?v=2.16',
   'src/visual-input.js?v=2.19',
-  'src/app.js?v=2.19',
+  'src/app.js?v=2.20',
   'src/score-tools.js?v=2.16',
   'src/sectors.js?v=2.19',
   'src/sector-program.js?v=2.16',

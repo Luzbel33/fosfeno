@@ -1,5 +1,7 @@
 ;(() => {
   'use strict'
+  const edition = '2.20'
+  const blankScore = '// Tu sketch Hydra'
   const $ = (id) => document.getElementById(id)
   const all = (sel, root = document) => Array.from(root.querySelectorAll(sel))
   const paths = {
@@ -295,7 +297,7 @@
   $('chooseOutput').onclick = () => outputPicker($('outputChoices').hidden)
   function codePending() {
     const code=cm.getValue()
-    return !!code.trim() && code!==appliedText
+    return hasSketch(code) && code!==appliedText
   }
   function updateLiveEdit() {
     const button=$('liveEdit')
@@ -737,7 +739,7 @@
   function restoreEditor(reference, play, fallback) {
     const recovered = stored('draft', null)
     const sameEntry = recovered?.historyEntry && recovered.historyEntry === history.state?.fosfenoEntry
-    if (typeof recovered?.code === 'string' && recovered.code.trim() && (!reference || sameEntry)) {
+    if (hasSketch(recovered?.code) && (!reference || sameEntry)) {
       load(recovered, false, false)
       modified = true
       armed = recovered.autoEdit === true
@@ -785,7 +787,7 @@
   function execute(code, { fresh = false, whole = true, remember = false } = {}) {
     const requested = revision
     clearTimeout(timer)
-    if (!engine || !code.trim()) {
+    if (!engine || !hasSketch(code)) {
       status('Escribí una cadena y terminala con .out().')
       return
     }
@@ -1063,7 +1065,7 @@
       $('sectorCode').focus()
       return
     }
-    load({ id: 'nuevo', name: 'Sin título', code: '// Tu sketch Hydra\n\n' }, false)
+    load({ id: 'nuevo', name: 'Sin título', code: blankScore + '\n\n' }, false)
     if (current.id === 'nuevo') {
       armed = true
       status(live ? 'Escribí una cadena Hydra. La salida se actualiza mientras editás.' : 'Escribí una cadena Hydra y ejecutala.')
@@ -1678,7 +1680,7 @@
   sound.restore()
   if (location.protocol === 'file:') $('offline').textContent = '· Local'
   else if ('serviceWorker' in navigator) {
-    const workerURL = new URL('sw.js?v=2.19', location.href).href
+    const workerURL = new URL('sw.js?v='+edition, location.href).href
     const showOfflineReady = () => {
       if (navigator.serviceWorker.controller?.scriptURL === workerURL)
         $('offline').textContent = '· Disponible sin conexión'
@@ -2104,6 +2106,18 @@
       fail('No se pudo recuperar la GPU. Volvé a cargar Fosfeno.')
     }
   })
+  function hasSketch(code) {
+    const text = typeof code === 'string' ? code.trim() : ''
+    return !!text && text !== blankScore
+  }
+  function normalizeEditionURL({ emptyTemplate } = {}) {
+    if (location.protocol==='file:') return
+    const url = new URL(location.href)
+    if (url.searchParams.has('v')) url.searchParams.set('v',edition)
+    if (emptyTemplate) url.searchParams.delete('code')
+    if (url.href === location.href) return
+    try { history.replaceState(history.state,'',url) } catch {}
+  }
   function sketchAtURL() {
     const query = new URL(location.href).searchParams
     const id = query.get('sketch_id')
@@ -2113,6 +2127,7 @@
       try {
         const code = decodeURIComponent(atob(query.get('code')))
         if (!code.trim()) return { error: 'El enlace no contiene código Hydra para abrir.' }
+        if (code.trim() === blankScore) return { emptyTemplate: true }
         return { item: { id: 'enlace', name: 'Sketch de enlace', code } }
       } catch {
         return { error: 'El enlace no contiene código Hydra válido.' }
@@ -2127,7 +2142,9 @@
   }
   function navigateHistory(event) {
     setMapping(new URL(location.href).searchParams.get('mode') === 'mapeo')
-    const { item, bundled, error } = sketchAtURL()
+    const sketch = sketchAtURL()
+    normalizeEditionURL(sketch)
+    const { item, bundled, error } = sketch
     if (error) {
       status(error, true)
       return
@@ -2137,7 +2154,9 @@
     applyURLVisibility()
   }
   async function start() {
-    const { item, bundled, error } = sketchAtURL()
+    const sketch = sketchAtURL()
+    normalizeEditionURL(sketch)
+    const { item, bundled, error } = sketch
     const fallback = bundled ? item : startupSketch()
     // The editor stays usable even when WebGL or the initial sketch fails.
     restoreEditor(item,bundled,fallback)

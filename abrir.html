@@ -2,20 +2,22 @@
 <html lang="es">
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>Abrir Fosfeno 2.19</title>
+    <title>Abrir Fosfeno 2.20</title>
   <body>
     <p id="estado" role="status">Abriendo Fosfeno…</p>
     <a id="continuar" href="./" hidden>Continuar al estudio</a>
     <script>
       const destino = new URL(location.protocol==='file:' ? 'index.html' : './', location.href)
+      const version = '2.20'
       destino.search = location.search
+      destino.searchParams.set('v',version)
       destino.hash = location.hash
       const continuar = document.getElementById('continuar')
       continuar.href = destino.href
 
       async function abrir() {
         const workers = navigator.serviceWorker
-        const actual = new URL('sw.js?v=2.19', location.href).href
+        const actual = new URL('sw.js?v='+version, location.href).href
         // Older workers serve their cached index for every query string on the home URL.
         if (workers?.controller && workers.controller.scriptURL !== actual) {
           await workers.register(actual, {updateViaCache:'none'})
