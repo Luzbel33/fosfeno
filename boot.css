@@ -1,3 +1,4 @@
+html:has(body.boot-frame) { background:#101311; }
 .boot-frame {
   position:fixed; inset:0; z-index:1000; overflow:auto;
   display:grid; place-items:center; margin:0; padding:24px; box-sizing:border-box;
